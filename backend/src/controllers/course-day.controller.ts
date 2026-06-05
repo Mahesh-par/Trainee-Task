@@ -8,11 +8,8 @@ import {
 } from "../services/course-day.service.js";
 import type { UpsertCourseDayInput } from "../services/course-day.service.js";
 import type { CourseSectionInput } from "../utils/course-sections.js";
-import {
-  courseSectionTypes,
-  courseSectionVariants,
-  type CourseSectionVariant
-} from "../models/course-day.model.js";
+import { courseSectionTypes } from "../models/course-day.model.js";
+import { resolveSectionStyle } from "../utils/section-style.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -53,9 +50,18 @@ const parseSections = (sections: unknown): CourseSectionInput[] => {
               url: String(resource.url)
             }))
         : [],
-      variant: courseSectionVariants.includes(section.variant as CourseSectionVariant)
-        ? (section.variant as CourseSectionVariant)
-        : "default"
+      ...(() => {
+        const { icon, color } = resolveSectionStyle({
+          icon: typeof section.icon === "string" ? section.icon : undefined,
+          color: typeof section.color === "string" ? section.color : undefined,
+          variant:
+            typeof section.variant === "string"
+              ? (section.variant as CourseSectionInput["variant"])
+              : undefined
+        });
+
+        return { icon, color };
+      })()
     }));
 };
 

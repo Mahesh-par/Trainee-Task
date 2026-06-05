@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import authRoutes from "./auth.routes.js";
 import courseDayRoutes from "./course-day.routes.js";
+import programSettingsRoutes from "./program-settings.routes.js";
 import daySubmissionRoutes from "./day-submission.routes.js";
 import healthRoutes from "./health.routes.js";
 import taskRoutes from "./task.routes.js";
@@ -11,6 +12,7 @@ const router = Router();
 
 router.use("/api/auth", authRoutes);
 router.use("/api/course-days", courseDayRoutes);
+router.use("/api/program-settings", programSettingsRoutes);
 router.use("/api/submissions", daySubmissionRoutes);
 router.use("/api/tasks", taskRoutes);
 router.use("/api/users", userRoutes);

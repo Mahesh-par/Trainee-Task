@@ -2,32 +2,31 @@ import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { createResourcesSection, createTextSection } from "../lib/curriculumDefaults";
-import type { CourseDayInput, CourseSection, CourseSectionType, CourseSectionVariant } from "../types";
+import { sectionColorOptions, sectionIconOptions } from "../lib/sectionStyle";
+import type {
+  CourseDayInput,
+  CourseSection,
+  CourseSectionColor,
+  CourseSectionIcon,
+  CourseSectionType
+} from "../types";
 
 type CourseDayEditorProps = {
   value: CourseDayInput;
   onChange: (value: CourseDayInput) => void;
   onSubmit: () => void;
-  onDelete?: () => void;
   isSaving: boolean;
   hasExistingContent: boolean;
+  maxDayNumber?: number;
 };
-
-const variantOptions: Array<{ value: CourseSectionVariant; label: string }> = [
-  { value: "default", label: "Default" },
-  { value: "task", label: "Daily Task style" },
-  { value: "tips", label: "Developer Tips style" },
-  { value: "shopify", label: "Shopify note" },
-  { value: "location", label: "Location note" }
-];
 
 export function CourseDayEditor({
   value,
   onChange,
   onSubmit,
-  onDelete,
   isSaving,
-  hasExistingContent
+  hasExistingContent,
+  maxDayNumber = 15
 }: CourseDayEditorProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -98,7 +97,7 @@ export function CourseDayEditor({
           <input
             type="number"
             min={1}
-            max={15}
+            max={maxDayNumber}
             value={value.dayNumber}
             onChange={(event) => onChange({ ...value, dayNumber: Number(event.target.value) })}
             readOnly={hasExistingContent}
@@ -210,21 +209,42 @@ export function CourseDayEditor({
                 <option value="text">Text block</option>
                 <option value="resources">Resource links</option>
               </select>
-              <select
-                value={section.variant ?? "default"}
-                onChange={(event) =>
-                  updateSection(section.id, {
-                    variant: event.target.value as CourseSectionVariant
-                  })
-                }
-                className="rounded-md border border-gray-300 px-2 py-2 text-xs font-semibold"
-              >
-                {variantOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              {section.type === "text" && (
+                <>
+                  <select
+                    value={section.icon ?? "none"}
+                    onChange={(event) =>
+                      updateSection(section.id, {
+                        icon: event.target.value as CourseSectionIcon
+                      })
+                    }
+                    className="rounded-md border border-gray-300 px-2 py-2 text-xs font-semibold"
+                    title="Section icon"
+                  >
+                    {sectionIconOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={section.color ?? "default"}
+                    onChange={(event) =>
+                      updateSection(section.id, {
+                        color: event.target.value as CourseSectionColor
+                      })
+                    }
+                    className="rounded-md border border-gray-300 px-2 py-2 text-xs font-semibold"
+                    title="Section color"
+                  >
+                    {sectionColorOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => removeSection(section.id)}
@@ -333,17 +353,6 @@ export function CourseDayEditor({
         >
           {isSaving ? "Saving..." : "Save Day Content"}
         </button>
-
-        {hasExistingContent && onDelete && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={isSaving}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
-          >
-            Delete Day
-          </button>
-        )}
       </div>
     </form>
   );

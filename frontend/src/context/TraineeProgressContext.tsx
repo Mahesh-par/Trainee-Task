@@ -9,7 +9,11 @@ import {
 } from "react";
 
 import { useAuth } from "./AuthContext";
-import { createDayTimelineFromProgress, fetchTraineeDayProgress } from "../lib/api";
+import {
+  createDayTimelineFromProgress,
+  DEFAULT_TOTAL_DAYS,
+  fetchTraineeDayProgress
+} from "../lib/api";
 import type { TraineeDayProgress } from "../types";
 import type { DayState } from "../types";
 
@@ -27,7 +31,8 @@ const defaultProgress: TraineeDayProgress = {
   unlockedDay: 1,
   doneDays: [],
   currentDay: 1,
-  programCompleted: false
+  programCompleted: false,
+  totalDays: DEFAULT_TOTAL_DAYS
 };
 
 const TraineeProgressContext = createContext<TraineeProgressContextValue | null>(null);

@@ -8,6 +8,7 @@ import { getUploadsDirectory } from "../middleware/upload.middleware.js";
 import { DaySubmissionModel } from "../models/day-submission.model.js";
 import type { SubmissionReviewStatus } from "../models/day-submission.model.js";
 import { submissionReviewStatuses } from "../models/day-submission.model.js";
+import { getTotalDays, validateDayInProgram } from "./program-settings.service.js";
 import { ApiError } from "../utils/api-error.js";
 import { enrichSubmissionDocument, getLastMessageRole } from "../utils/submission-messages.js";
 
@@ -16,12 +17,6 @@ const enrichSubmission = <T extends Record<string, unknown>>(submission: T | nul
 
 const enrichSubmissions = <T extends Record<string, unknown>>(submissions: T[]) =>
   submissions.map((submission) => enrichSubmissionDocument(submission));
-
-const validateDayNumber = (dayNumber: number) => {
-  if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > 15) {
-    throw new ApiError(400, "Day number must be between 1 and 15");
-  }
-};
 
 const mapUploadedFiles = (files: Express.Multer.File[]) =>
   files.map((file) => ({
@@ -46,7 +41,7 @@ const removeFilesFromDisk = async (storedNames: string[]) => {
 };
 
 export const getSubmissionForTraineeDay = async (traineeId: string, dayNumber: number) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -74,7 +69,7 @@ export const upsertDaySubmission = async ({
   content: string;
   files: Express.Multer.File[];
 }) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -127,7 +122,7 @@ export const removeSubmissionAttachment = async ({
   dayNumber: number;
   attachmentId: string;
 }) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -156,7 +151,7 @@ export const removeSubmissionAttachment = async ({
 };
 
 export const getSubmissionsForDay = async (dayNumber: number) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   const submissions = await DaySubmissionModel.find({ dayNumber })
     .populate("trainee", "name email")
@@ -195,15 +190,17 @@ export const getTraineeDayProgress = async (traineeId: string) => {
   const doneDays = doneSubmissions
     .map((submission) => submission.dayNumber)
     .sort((left, right) => left - right);
-  const highestDoneDay = doneDays.at(-1) ?? 0;
-  const unlockedDay = Math.min(Math.max(highestDoneDay + 1, 1), 15);
-  const programCompleted = highestDoneDay >= 15;
+  const totalDays = await getTotalDays();
+  const highestDoneDay = doneDays[doneDays.length - 1] ?? 0;
+  const unlockedDay = Math.min(Math.max(highestDoneDay + 1, 1), totalDays);
+  const programCompleted = highestDoneDay >= totalDays;
 
   return {
     unlockedDay,
     doneDays,
-    currentDay: programCompleted ? 15 : unlockedDay,
-    programCompleted
+    currentDay: programCompleted ? totalDays : unlockedDay,
+    programCompleted,
+    totalDays
   };
 };
 
@@ -278,7 +275,7 @@ export const submitTraineeReply = async ({
   dayNumber: number;
   traineeReply: string;
 }) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");

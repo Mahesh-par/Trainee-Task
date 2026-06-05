@@ -65,8 +65,7 @@ const daySubmissionSchema = new Schema(
     dayNumber: {
       type: Number,
       required: true,
-      min: 1,
-      max: 15
+      min: 1
     },
     content: {
       type: String,

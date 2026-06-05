@@ -5,6 +5,7 @@ import type { DayState } from "../types";
 type DayTrackerProps = {
   days: Array<{ day: number; state: DayState }>;
   currentDay: number;
+  totalDays?: number;
   selectedDay?: number;
   onSelectDay?: (day: number) => void;
 };
@@ -15,14 +16,20 @@ const dayStyles: Record<DayState, string> = {
   upcoming: "border-gray-300 bg-gray-100 text-gray-400"
 };
 
-export function DayTracker({ days, currentDay, selectedDay, onSelectDay }: DayTrackerProps) {
+export function DayTracker({
+  days,
+  currentDay,
+  totalDays = days.length,
+  selectedDay,
+  onSelectDay
+}: DayTrackerProps) {
   const activeDay = selectedDay ?? currentDay;
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
-          15-Day Progress
+          {totalDays}-Day Progress
         </h2>
         <span className="text-xs font-semibold text-gray-500">Day {activeDay}</span>
       </div>

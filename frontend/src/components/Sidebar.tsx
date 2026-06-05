@@ -13,7 +13,7 @@ import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router
 
 import { useAuth } from "../context/AuthContext";
 import { useTraineeProgress } from "../context/TraineeProgressContext";
-import { createDayTimeline } from "../lib/api";
+import { createDayTimeline, DEFAULT_TOTAL_DAYS } from "../lib/api";
 import { DayTracker } from "./DayTracker";
 
 const navLinks = [
@@ -55,7 +55,7 @@ export function Sidebar({
 
     return user?.role !== "admin" || link.to.startsWith("/trainee");
   });
-  const { dayTimeline: progressTimeline } = useTraineeProgress();
+  const { dayTimeline: progressTimeline, progress } = useTraineeProgress();
   const dayTimeline =
     user?.role === "admin" ? createDayTimeline(user?.createdAt) : progressTimeline;
   const selectedDay = Number(searchParams.get("day")) || dayTimeline.currentDay;
@@ -337,6 +337,7 @@ export function Sidebar({
           <DayTracker
             days={dayTimeline.days}
             currentDay={dayTimeline.currentDay}
+            totalDays={progress?.totalDays ?? DEFAULT_TOTAL_DAYS}
             selectedDay={location.pathname === "/trainee/course" ? selectedDay : undefined}
             onSelectDay={handleSelectDay}
           />

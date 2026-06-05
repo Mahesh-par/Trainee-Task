@@ -224,18 +224,20 @@ export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
               </div>
             </label>
             {selectedFiles.length > 0 && (
-              <div className="mt-3 space-y-3">
+              <div className="mt-3">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-violet-800">
                   New files (preview before save)
                 </p>
-                {selectedFiles.map((file, index) => (
-                  <PendingFilePreview
-                    key={`${file.name}-${file.size}-${index}`}
-                    file={file}
-                    previewUrl={pendingPreviewUrls[index]}
-                    onRemove={() => handleRemovePendingFile(index)}
-                  />
-                ))}
+                <div className="mt-2 flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+                  {selectedFiles.map((file, index) => (
+                    <PendingFilePreview
+                      key={`${file.name}-${file.size}-${index}`}
+                      file={file}
+                      previewUrl={pendingPreviewUrls[index]}
+                      onRemove={() => handleRemovePendingFile(index)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>

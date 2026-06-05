@@ -1,10 +1,17 @@
-import { BookOpen, UserCircle } from "lucide-react";
+import { BookOpen, Plus, Trash2, UserCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CourseDayDetail } from "../components/CourseDayDetail";
 import { CourseDayEditor } from "../components/CourseDayEditor";
 import { useAuth } from "../context/AuthContext";
-import { apiRequest, mapCourseDay } from "../lib/api";
+import {
+  apiRequest,
+  DEFAULT_TOTAL_DAYS,
+  fetchProgramSettings,
+  mapCourseDay,
+  updateProgramSettings
+} from "../lib/api";
 import {
   courseDayInputFromCourseDay,
   courseDayPreviewFromInput,
@@ -16,15 +23,27 @@ type CourseDaysResponse = {
   courseDays: Parameters<typeof mapCourseDay>[0][];
 };
 
+type ConfirmDialogState = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  action: () => Promise<void>;
+};
+
 export function AdminCurriculumPage() {
   const { user } = useAuth();
   const [courseDays, setCourseDays] = useState<CourseDay[]>([]);
+  const [totalDays, setTotalDays] = useState(DEFAULT_TOTAL_DAYS);
+  const [daysToAdd, setDaysToAdd] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
   const [formValue, setFormValue] = useState<CourseDayInput>(emptyCourseDayInput(1));
   const [notification, setNotification] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingDays, setIsUpdatingDays] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const courseDayByNumber = useMemo(
     () => new Map(courseDays.map((courseDay) => [courseDay.dayNumber, courseDay])),
@@ -39,8 +58,12 @@ export function AdminCurriculumPage() {
     setIsLoading(true);
 
     try {
-      const data = await apiRequest<CourseDaysResponse>("/course-days");
+      const [data, settings] = await Promise.all([
+        apiRequest<CourseDaysResponse>("/course-days"),
+        fetchProgramSettings()
+      ]);
       setCourseDays(data.courseDays.map(mapCourseDay));
+      setTotalDays(settings.totalDays);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load curriculum");
     } finally {
@@ -84,30 +107,84 @@ export function AdminCurriculumPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedCourseDay) {
+  const requestDeletePage = () => {
+    if (selectedCourseDay) {
+      setConfirmDialog({
+        title: `Delete Day ${selectedDay} page?`,
+        description: `This will permanently remove all saved content for "${selectedCourseDay.title}". Trainees will no longer see this day until you publish new content.`,
+        confirmLabel: "Delete Page",
+        action: async () => {
+          setIsSaving(true);
+          setError("");
+
+          try {
+            await apiRequest(`/course-days/${selectedDay}`, {
+              method: "DELETE"
+            });
+            await loadCourseDays();
+            setFormValue(emptyCourseDayInput(selectedDay));
+            showNotification(`Day ${selectedDay} content deleted.`);
+          } catch (requestError) {
+            setError(
+              requestError instanceof Error ? requestError.message : "Failed to delete day content"
+            );
+            throw requestError;
+          } finally {
+            setIsSaving(false);
+          }
+        }
+      });
       return;
     }
 
-    const confirmed = window.confirm(`Delete content for Day ${selectedDay}?`);
+    setConfirmDialog({
+      title: `Clear Day ${selectedDay} draft?`,
+      description:
+        "This page has not been saved yet. Clearing it will reset the topic title, sections, and unpublished changes for this day.",
+      confirmLabel: "Clear Page",
+      action: async () => {
+        setFormValue(emptyCourseDayInput(selectedDay));
+        showNotification(`Day ${selectedDay} draft cleared.`);
+      }
+    });
+  };
 
-    if (!confirmed) {
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog) {
       return;
     }
 
-    setIsSaving(true);
+    setIsConfirming(true);
+
+    try {
+      await confirmDialog.action();
+      setConfirmDialog(null);
+    } catch {
+      // Keep the dialog open when the action fails.
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleAddDays = async () => {
+    const addCount = Math.max(1, Math.floor(daysToAdd));
+
+    if (totalDays + addCount > 365) {
+      setError("Program length cannot exceed 365 days.");
+      return;
+    }
+
+    setIsUpdatingDays(true);
     setError("");
 
     try {
-      await apiRequest(`/course-days/${selectedDay}`, {
-        method: "DELETE"
-      });
-      await loadCourseDays();
-      showNotification(`Day ${selectedDay} content deleted.`);
+      const settings = await updateProgramSettings(totalDays + addCount);
+      setTotalDays(settings.totalDays);
+      showNotification(`Program extended to ${settings.totalDays} days.`);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to delete day content");
+      setError(requestError instanceof Error ? requestError.message : "Failed to add days");
     } finally {
-      setIsSaving(false);
+      setIsUpdatingDays(false);
     }
   };
 
@@ -125,7 +202,7 @@ export function AdminCurriculumPage() {
             <BookOpen className="h-5 w-5 text-navy-800" />
             <div className="text-right">
               <p className="text-sm font-bold text-gray-950">{user?.name ?? "Admin"}</p>
-              <p className="text-xs font-semibold text-gray-500">15-day program</p>
+              <p className="text-xs font-semibold text-gray-500">{totalDays}-day program</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-gray-50 text-navy-800">
               <UserCircle className="h-5 w-5" />
@@ -158,7 +235,7 @@ export function AdminCurriculumPage() {
                 Training Days
               </h3>
               <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5 xl:grid-cols-3">
-                {Array.from({ length: 15 }, (_, index) => {
+                {Array.from({ length: totalDays }, (_, index) => {
                   const day = index + 1;
                   const hasContent = courseDayByNumber.has(day);
                   const isSelected = selectedDay === day;
@@ -181,6 +258,39 @@ export function AdminCurriculumPage() {
                   );
                 })}
               </div>
+
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-gray-500">
+                  Program Length
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-800">
+                  Currently {totalDays} training days
+                </p>
+                <div className="mt-3 flex items-end gap-2">
+                  <label className="min-w-0 flex-1 text-xs font-bold text-gray-600">
+                    Days to add
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={daysToAdd}
+                      onChange={(event) => setDaysToAdd(Math.max(1, Number(event.target.value) || 1))}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handleAddDays()}
+                    disabled={isUpdatingDays}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-navy-900 px-3 py-2 text-xs font-bold text-white hover:bg-navy-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {isUpdatingDays ? "Adding..." : "Add Days"}
+                  </button>
+                </div>
+
+              </div>
+
               <p className="mt-4 text-xs leading-5 text-gray-500">
                 Green days already have saved content. Select a day, drag sections, and publish.
               </p>
@@ -188,18 +298,29 @@ export function AdminCurriculumPage() {
 
             <div className="grid gap-6 xl:grid-cols-2">
               <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-soft">
-                <h3 className="text-lg font-extrabold text-gray-950">
-                  Edit Day {selectedDay}
-                  {selectedCourseDay ? `: ${selectedCourseDay.title}` : ""}
-                </h3>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-lg font-extrabold text-gray-950">
+                    Edit Day {selectedDay}
+                    {selectedCourseDay ? `: ${selectedCourseDay.title}` : ""}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={requestDeletePage}
+                    disabled={isSaving || isConfirming}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Page
+                  </button>
+                </div>
                 <div className="mt-4">
                   <CourseDayEditor
                     value={formValue}
                     onChange={setFormValue}
                     onSubmit={handleSave}
-                    onDelete={handleDelete}
                     isSaving={isSaving}
                     hasExistingContent={Boolean(selectedCourseDay)}
+                    maxDayNumber={totalDays}
                   />
                 </div>
               </section>
@@ -223,6 +344,20 @@ export function AdminCurriculumPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title ?? ""}
+        description={confirmDialog?.description ?? ""}
+        confirmLabel={confirmDialog?.confirmLabel ?? "Confirm"}
+        isLoading={isConfirming}
+        onCancel={() => {
+          if (!isConfirming) {
+            setConfirmDialog(null);
+          }
+        }}
+        onConfirm={() => void handleConfirmDialog()}
+      />
     </div>
   );
 }

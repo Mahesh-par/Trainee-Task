@@ -1,4 +1,4 @@
-import type { CourseDayInput, CourseSection, CourseSectionVariant } from "../types";
+import type { CourseDayInput, CourseSection, CourseSectionColor, CourseSectionIcon } from "../types";
 
 export const createSectionId = () =>
   `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -7,14 +7,16 @@ export const createTextSection = (
   label: string,
   order: number,
   content = "",
-  variant: CourseSectionVariant = "default"
+  icon: CourseSectionIcon = "none",
+  color: CourseSectionColor = "default"
 ): CourseSection => ({
   id: createSectionId(),
   label,
   type: "text",
   order,
   content,
-  variant
+  icon,
+  color
 });
 
 export const createResourcesSection = (
@@ -26,16 +28,17 @@ export const createResourcesSection = (
   type: "resources",
   order,
   resources: [{ label: "", url: "" }],
-  variant: "default"
+  icon: "none",
+  color: "default"
 });
 
 export const defaultSectionsForNewDay = (): CourseSection[] => [
   createTextSection("Explanation", 0),
   createResourcesSection("Learning Resources", 1),
-  createTextSection("How it applies in Shopify", 2, "", "shopify"),
-  createTextSection("Where to access in Shopify", 3, "", "location"),
-  createTextSection("Daily Task", 4, "", "task"),
-  createTextSection("Developer Tips", 5, "", "tips")
+  createTextSection("How it applies in Shopify", 2, "", "shopping-bag", "default"),
+  createTextSection("Where to access in Shopify", 3, "", "map-pin", "rose"),
+  createTextSection("Daily Task", 4, "", "target", "emerald"),
+  createTextSection("Developer Tips", 5, "", "lightbulb", "amber")
 ];
 
 export const emptyCourseDayInput = (dayNumber: number): CourseDayInput => ({

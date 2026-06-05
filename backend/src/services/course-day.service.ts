@@ -1,12 +1,12 @@
 import { CourseDayModel } from "../models/course-day.model.js";
-import { courseSectionVariants } from "../models/course-day.model.js";
-import type { CourseSectionVariant } from "../models/course-day.model.js";
+import { resolveSectionStyle } from "../utils/section-style.js";
 import {
   buildLegacySections,
   normalizeCourseDayRecord,
   syncLegacyFieldsFromSections
 } from "../utils/course-sections.js";
 import type { CourseSectionInput, ResourceLinkInput } from "../utils/course-sections.js";
+import { validateDayInProgram } from "./program-settings.service.js";
 import { ApiError } from "../utils/api-error.js";
 
 export type { ResourceLinkInput };
@@ -16,12 +16,6 @@ export type UpsertCourseDayInput = {
   title: string;
   sections: CourseSectionInput[];
   isPublished?: boolean;
-};
-
-const validateDayNumber = (dayNumber: number) => {
-  if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > 15) {
-    throw new ApiError(400, "Day number must be between 1 and 15");
-  }
 };
 
 const normalizeResources = (resources: ResourceLinkInput[] = []) => {
@@ -50,9 +44,7 @@ const normalizeSections = (sections: CourseSectionInput[]) => {
         throw new ApiError(400, `Invalid section type for "${label}"`);
       }
 
-      const variant = courseSectionVariants.includes(section.variant as CourseSectionVariant)
-        ? section.variant
-        : "default";
+      const { icon, color } = resolveSectionStyle(section);
 
       if (section.type === "resources") {
         return {
@@ -61,7 +53,8 @@ const normalizeSections = (sections: CourseSectionInput[]) => {
           type: "resources" as const,
           order: index,
           resources: normalizeResources(section.resources),
-          variant
+          icon,
+          color
         };
       }
 
@@ -71,7 +64,8 @@ const normalizeSections = (sections: CourseSectionInput[]) => {
         type: "text" as const,
         order: index,
         content: String(section.content ?? "").trim(),
-        variant
+        icon,
+        color
       };
     });
 };
@@ -84,7 +78,7 @@ export const getAllCourseDays = async (publishedOnly: boolean) => {
 };
 
 export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boolean) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   const filter = publishedOnly
     ? { dayNumber, isPublished: true }
@@ -100,7 +94,7 @@ export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boo
 };
 
 export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
-  validateDayNumber(input.dayNumber);
+  await validateDayInProgram(input.dayNumber);
 
   if (!input.title.trim()) {
     throw new ApiError(400, "Title is required");
@@ -135,7 +129,7 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
 };
 
 export const deleteCourseDay = async (dayNumber: number) => {
-  validateDayNumber(dayNumber);
+  await validateDayInProgram(dayNumber);
 
   const courseDay = await CourseDayModel.findOneAndDelete({ dayNumber });
 

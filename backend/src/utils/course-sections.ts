@@ -1,4 +1,5 @@
 import type { CourseSectionVariant } from "../models/course-day.model.js";
+import { resolveSectionStyle } from "./section-style.js";
 
 export type ResourceLinkInput = {
   label: string;
@@ -13,6 +14,8 @@ export type CourseSectionInput = {
   content?: string;
   resources?: ResourceLinkInput[];
   variant?: CourseSectionVariant;
+  icon?: string;
+  color?: string;
 };
 
 type LegacyCourseDay = {
@@ -101,8 +104,18 @@ export const syncLegacyFieldsFromSections = (sections: CourseSectionInput[]) => 
   };
 };
 
+const enrichSectionStyle = (section: CourseSectionInput): CourseSectionInput => {
+  const { icon, color } = resolveSectionStyle(section);
+
+  return {
+    ...section,
+    icon,
+    color
+  };
+};
+
 export const normalizeCourseDayRecord = <T extends LegacyCourseDay>(courseDay: T) => {
-  const sections = buildLegacySections(courseDay);
+  const sections = buildLegacySections(courseDay).map(enrichSectionStyle);
 
   return {
     ...courseDay,

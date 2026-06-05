@@ -1,5 +1,5 @@
-import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { fetchTraineeSubmissions, markTraineeRepliesAsRead } from "../lib/api";
 import type { DaySubmission, Trainee } from "../types";
@@ -17,12 +17,14 @@ type TraineeDetailModalProps = {
 
 export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeDetailModalProps) {
   const [submissions, setSubmissions] = useState<DaySubmission[]>([]);
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!trainee) {
       setSubmissions([]);
+      setExpandedDays(new Set());
       return;
     }
 
@@ -33,6 +35,12 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
       try {
         const data = await fetchTraineeSubmissions(trainee.id);
         setSubmissions(data);
+
+        const latestDay = data.reduce(
+          (highest, submission) => Math.max(highest, submission.dayNumber),
+          0
+        );
+        setExpandedDays(latestDay > 0 ? new Set([latestDay]) : new Set());
       } catch (requestError) {
         setError(
           requestError instanceof Error ? requestError.message : "Failed to load submissions"
@@ -59,6 +67,11 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
     void loadAndMarkRead();
   }, [trainee]);
 
+  const sortedSubmissions = useMemo(
+    () => [...submissions].sort((left, right) => left.dayNumber - right.dayNumber),
+    [submissions]
+  );
+
   if (!trainee) {
     return null;
   }
@@ -71,6 +84,45 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
         submission.id === updatedSubmission.id ? updatedSubmission : submission
       )
     );
+  };
+
+  const toggleDay = (dayNumber: number) => {
+    setExpandedDays((current) => {
+      const next = new Set(current);
+
+      if (next.has(dayNumber)) {
+        next.delete(dayNumber);
+      } else {
+        next.add(dayNumber);
+      }
+
+      return next;
+    });
+  };
+
+  const getSubmissionSummary = (submission: DaySubmission) => {
+    const parts: string[] = [];
+
+    if (submission.content.trim()) {
+      parts.push("Text");
+    }
+
+    if (submission.attachments.length > 0) {
+      parts.push(
+        `${submission.attachments.length} file${submission.attachments.length === 1 ? "" : "s"}`
+      );
+    }
+
+    if (submission.messages.length > 0) {
+      parts.push(`${submission.messages.length} message${submission.messages.length === 1 ? "" : "s"}`);
+    }
+
+    return parts.length > 0 ? parts.join(" · ") : "No content yet";
+  };
+
+  const hasUnreadReply = (submission: DaySubmission) => {
+    const lastMessage = submission.messages[submission.messages.length - 1];
+    return lastMessage?.role === "trainee" && !submission.adminReplyRead;
   };
 
   return (
@@ -99,9 +151,9 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
         <div className="space-y-6 p-6">
           <section className="rounded-lg border border-gray-200 p-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-extrabold text-gray-950">15-Day Progress</p>
+              <p className="text-sm font-extrabold text-gray-950">Training Progress</p>
               <p className="text-sm font-semibold text-gray-600">
-                Day {currentDay} / 15 · {submissions.length} submission
+                Day {currentDay} · {submissions.length} submission
                 {submissions.length === 1 ? "" : "s"}
               </p>
             </div>
@@ -128,56 +180,94 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
                 This trainee has not submitted any daily work yet.
               </p>
             ) : (
-              <div className="space-y-4">
-                {submissions.map((submission) => (
-                  <article
-                    key={submission.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-soft"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h5 className="text-base font-extrabold text-gray-950">
-                          Day {submission.dayNumber}
-                        </h5>
-                        {submission.reviewStatus && (
-                          <SubmissionReviewStatusBadge status={submission.reviewStatus} />
+              <div className="space-y-2">
+                {sortedSubmissions.map((submission) => {
+                  const isExpanded = expandedDays.has(submission.dayNumber);
+                  const unread = hasUnreadReply(submission);
+
+                  return (
+                    <article
+                      key={submission.id}
+                      className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-soft"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleDay(submission.dayNumber)}
+                        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50 ${
+                          isExpanded ? "border-b border-gray-100 bg-gray-50" : ""
+                        }`}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h5 className="text-base font-extrabold text-gray-950">
+                              Day {submission.dayNumber}
+                            </h5>
+                            {submission.reviewStatus && (
+                              <SubmissionReviewStatusBadge status={submission.reviewStatus} />
+                            )}
+                            {unread && (
+                              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-extrabold text-white">
+                                NEW REPLY
+                              </span>
+                            )}
+                          </div>
+                          {!isExpanded && (
+                            <p className="mt-1 truncate text-xs text-gray-500">
+                              {getSubmissionSummary(submission)}
+                            </p>
+                          )}
+                        </div>
+
+                        {submission.updatedAt && (
+                          <p className="shrink-0 text-xs font-semibold text-gray-500">
+                            {isExpanded
+                              ? `Updated ${new Date(submission.updatedAt).toLocaleString()}`
+                              : new Date(submission.updatedAt).toLocaleDateString()}
+                          </p>
                         )}
-                      </div>
-                      {submission.updatedAt && (
-                        <p className="text-xs font-semibold text-gray-500">
-                          Updated {new Date(submission.updatedAt).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
+                      </button>
 
-                    {submission.content ? (
-                      <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-6 text-gray-800">
-                        {submission.content}
-                      </pre>
-                    ) : (
-                      <p className="mt-3 text-sm text-gray-500">No pasted text for this day.</p>
-                    )}
+                      {isExpanded && (
+                        <div className="space-y-4 p-4">
+                          {submission.content ? (
+                            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-6 text-gray-800">
+                              {submission.content}
+                            </pre>
+                          ) : (
+                            <p className="text-sm text-gray-500">No pasted text for this day.</p>
+                          )}
 
-                    {submission.attachments.length > 0 && (
-                      <div className="mt-3 space-y-3">
-                        {submission.attachments.map((attachment) => (
-                          <AttachmentPreview
-                            key={attachment.id}
-                            url={attachment.url}
-                            name={attachment.originalName}
-                            mimeType={attachment.mimeType}
-                            size={attachment.size}
+                          {submission.attachments.length > 0 && (
+                            <div className="space-y-3">
+                              {submission.attachments.map((attachment) => (
+                                <AttachmentPreview
+                                  key={attachment.id}
+                                  url={attachment.url}
+                                  name={attachment.originalName}
+                                  mimeType={attachment.mimeType}
+                                  size={attachment.size}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                          <SubmissionAdminReview
+                            submission={submission}
+                            onUpdated={handleSubmissionUpdated}
                           />
-                        ))}
-                      </div>
-                    )}
-
-                    <SubmissionAdminReview
-                      submission={submission}
-                      onUpdated={handleSubmissionUpdated}
-                    />
-                  </article>
-                ))}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>

@@ -1,3 +1,4 @@
+import { resolveSectionStyle } from "./sectionStyle";
 import type {
   AuthUser,
   CourseDay,
@@ -5,6 +6,7 @@ import type {
   DaySubmission,
   SubmissionMessage,
   SubmissionReviewStatus,
+  ProgramSettings,
   TraineeDayProgress,
   Task,
   TaskStatus,
@@ -12,9 +14,20 @@ import type {
   TrainingStatus
 } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://172.168.16.39:6060/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:6060/api";
 
-export const getUploadsBaseUrl = () => API_BASE_URL.replace(/\/api\/?$/, "");
+export const DEFAULT_TOTAL_DAYS = 15;
+
+export const getUploadsBaseUrl = () => {
+  if (API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://")) {
+    return API_BASE_URL.replace(/\/api\/?$/, "");
+  }
+
+  return "";
+};
+
+export const getAttachmentUrl = (storedName: string) =>
+  `${getUploadsBaseUrl()}/uploads/${encodeURIComponent(storedName)}`;
 
 type ApiResponse<T> = {
   success: boolean;
@@ -132,7 +145,7 @@ export const createDayTimeline = (createdAt?: string) => {
 
 export const createDayTimelineFromProgress = (progress: TraineeDayProgress) => ({
   currentDay: progress.currentDay,
-  days: Array.from({ length: 15 }, (_, index) => {
+  days: Array.from({ length: progress.totalDays }, (_, index) => {
     const day = index + 1;
 
     if (progress.doneDays.includes(day)) {
@@ -152,6 +165,20 @@ export const fetchTraineeDayProgress = async () => {
   return data.progress;
 };
 
+export const fetchProgramSettings = async () => {
+  const data = await apiRequest<ProgramSettings>("/program-settings");
+  return data;
+};
+
+export const updateProgramSettings = async (totalDays: number) => {
+  const data = await apiRequest<ProgramSettings>("/program-settings", {
+    method: "PATCH",
+    body: JSON.stringify({ totalDays })
+  });
+
+  return data;
+};
+
 export const apiRequest = async <T>(path: string, options: RequestInit = {}) => {
   const token = getToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -163,7 +190,22 @@ export const apiRequest = async <T>(path: string, options: RequestInit = {}) => 
     }
   });
 
-  const payload = (await response.json()) as ApiResponse<T>;
+  const rawText = await response.text();
+  let payload: ApiResponse<T>;
+
+  try {
+    payload = rawText
+      ? (JSON.parse(rawText) as ApiResponse<T>)
+      : {
+          success: false,
+          message: `Empty response from server (${response.status})`,
+          data: null as T
+        };
+  } catch {
+    throw new Error(
+      rawText.trim() || `Request failed with status ${response.status}. Check that the backend is running on port 6060.`
+    );
+  }
 
   if (!response.ok) {
     throw new Error(payload.message || "Request failed");
@@ -225,13 +267,18 @@ export const mapCourseDay = (courseDay: BackendCourseDay): CourseDay => ({
   id: courseDay._id,
   dayNumber: courseDay.dayNumber,
   title: courseDay.title,
-  sections: (courseDay.sections ?? []).map((section, index) => ({
-    ...section,
-    order: section.order ?? index,
-    resources: section.resources ?? [],
-    content: section.content ?? "",
-    variant: section.variant ?? "default"
-  })),
+  sections: (courseDay.sections ?? []).map((section, index) => {
+    const { icon, color } = resolveSectionStyle(section);
+
+    return {
+      ...section,
+      order: section.order ?? index,
+      resources: section.resources ?? [],
+      content: section.content ?? "",
+      icon,
+      color
+    };
+  }),
   isPublished: courseDay.isPublished
 });
 
@@ -328,7 +375,7 @@ export const mapDaySubmission = (submission: BackendDaySubmission): DaySubmissio
       storedName: attachment.storedName,
       mimeType: attachment.mimeType,
       size: attachment.size,
-      url: `${getUploadsBaseUrl()}/uploads/${attachment.storedName}`
+      url: getAttachmentUrl(attachment.storedName)
     })),
     submittedAt: submission.createdAt,
     updatedAt: submission.updatedAt,

@@ -22,7 +22,9 @@ export function TraineeCurriculumPage() {
 
   const { dayTimeline, progress, refreshProgress } = useTraineeProgress();
   const requestedDay = Number(searchParams.get("day"));
-  const maxAccessibleDay = progress?.programCompleted ? 15 : (progress?.unlockedDay ?? 1);
+  const maxAccessibleDay = progress?.programCompleted
+    ? (progress?.totalDays ?? 15)
+    : (progress?.unlockedDay ?? 1);
 
   const loadCourseDays = useCallback(async () => {
     setError("");

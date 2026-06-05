@@ -40,6 +40,20 @@ export type ResourceLink = {
 
 export type CourseSectionType = "text" | "resources";
 export type CourseSectionVariant = "default" | "task" | "tips" | "shopify" | "location";
+export type CourseSectionIcon =
+  | "none"
+  | "lightbulb"
+  | "target"
+  | "map-pin"
+  | "shopping-bag"
+  | "book-open"
+  | "check-circle"
+  | "info"
+  | "zap"
+  | "clipboard"
+  | "star"
+  | "flame";
+export type CourseSectionColor = "default" | "amber" | "orange" | "rose" | "red" | "emerald";
 
 export type CourseSection = {
   id: string;
@@ -48,6 +62,8 @@ export type CourseSection = {
   order: number;
   content?: string;
   resources?: ResourceLink[];
+  icon?: CourseSectionIcon;
+  color?: CourseSectionColor;
   variant?: CourseSectionVariant;
 };
 
@@ -80,11 +96,17 @@ export type SubmissionMessage = {
   createdAt: string;
 };
 
+export type ProgramSettings = {
+  totalDays: number;
+  minimumTotalDays: number;
+};
+
 export type TraineeDayProgress = {
   unlockedDay: number;
   doneDays: number[];
   currentDay: number;
   programCompleted: boolean;
+  totalDays: number;
 };
 
 export type DaySubmission = {

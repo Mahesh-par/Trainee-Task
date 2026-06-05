@@ -1,11 +1,16 @@
 import { model, Schema } from "mongoose";
 import type { InferSchemaType } from "mongoose";
 
+import { courseSectionColors, courseSectionIcons } from "../utils/section-style.js";
+
 export const courseSectionTypes = ["text", "resources"] as const;
 export type CourseSectionType = (typeof courseSectionTypes)[number];
 
 export const courseSectionVariants = ["default", "task", "tips", "shopify", "location"] as const;
 export type CourseSectionVariant = (typeof courseSectionVariants)[number];
+
+export type { CourseSectionColor, CourseSectionIcon } from "../utils/section-style.js";
+export { courseSectionColors, courseSectionIcons } from "../utils/section-style.js";
 
 const resourceLinkSchema = new Schema(
   {
@@ -23,6 +28,16 @@ const courseSectionSchema = new Schema(
     order: { type: Number, required: true, min: 0 },
     content: { type: String, default: "", trim: true },
     resources: { type: [resourceLinkSchema], default: [] },
+    icon: {
+      type: String,
+      enum: courseSectionIcons,
+      default: "none"
+    },
+    color: {
+      type: String,
+      enum: courseSectionColors,
+      default: "default"
+    },
     variant: {
       type: String,
       enum: courseSectionVariants,
@@ -38,7 +53,6 @@ const courseDaySchema = new Schema(
       type: Number,
       required: true,
       min: 1,
-      max: 15,
       unique: true
     },
     title: {

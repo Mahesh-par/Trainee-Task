@@ -1,4 +1,4 @@
-import { ExternalLink, FileCode2, FileText, ImageIcon, Paperclip, Trash2 } from "lucide-react";
+import { ExternalLink, FileCode2, FileText, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type PreviewKind = "image" | "pdf" | "text" | "unsupported";
@@ -77,6 +77,54 @@ export function AttachmentPreview({
   const [textPreview, setTextPreview] = useState("");
   const [textError, setTextError] = useState("");
   const [isLoadingText, setIsLoadingText] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImagePreviewUrl(null);
+    setImageError(false);
+  }, [url]);
+
+  useEffect(() => {
+    if (previewKind !== "image") {
+      return;
+    }
+
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    const loadImagePreview = async () => {
+      try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error("Could not load image preview");
+        }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        if (!cancelled) {
+          setImagePreviewUrl(objectUrl);
+          setImageError(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setImageError(true);
+        }
+      }
+    };
+
+    void loadImagePreview();
+
+    return () => {
+      cancelled = true;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [previewKind, url]);
 
   useEffect(() => {
     if (previewKind !== "text") {
@@ -147,11 +195,24 @@ export function AttachmentPreview({
       <div className="bg-gray-50 p-3">
         {previewKind === "image" && (
           <a href={url} target="_blank" rel="noreferrer" className="inline-block">
-            <img
-              src={url}
-              alt={name}
-              className="h-28 w-28 rounded-md border border-gray-200 object-cover object-left bg-white"
-            />
+            {imageError ? (
+              <div className="flex h-28 w-28 items-center justify-center rounded-md border border-dashed border-gray-300 bg-white px-2 text-center">
+                <p className="text-[11px] font-semibold leading-4 text-gray-500">
+                  Preview unavailable.
+                  <span className="mt-1 block text-navy-800">Open file</span>
+                </p>
+              </div>
+            ) : imagePreviewUrl ? (
+              <img
+                src={imagePreviewUrl}
+                alt={name}
+                className="h-28 w-28 rounded-md border border-gray-200 object-cover object-center bg-white"
+              />
+            ) : (
+              <div className="flex h-28 w-28 items-center justify-center rounded-md border border-gray-200 bg-white text-xs font-semibold text-gray-500">
+                Loading preview...
+              </div>
+            )}
           </a>
         )}
 
@@ -203,81 +264,42 @@ type PendingFilePreviewProps = {
 
 export function PendingFilePreview({ file, previewUrl, onRemove }: PendingFilePreviewProps) {
   const previewKind = getPreviewKind(file.name, file.type);
-  const [textPreview, setTextPreview] = useState("");
-
-  useEffect(() => {
-    if (previewKind !== "text") {
-      setTextPreview("");
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setTextPreview(result.slice(0, 8000));
-    };
-
-    reader.readAsText(file);
-  }, [file, previewKind]);
 
   return (
-    <article className="overflow-hidden rounded-md border border-violet-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 px-3 py-2">
-        <div className="min-w-0">
-          <p className="inline-flex max-w-full items-center gap-2 text-sm font-semibold text-violet-900">
-            <ImageIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{file.name}</span>
-            <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-          </p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-violet-700">
-            Pending upload
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Remove
-        </button>
-      </div>
+    <article className="relative w-36 shrink-0 overflow-hidden rounded-md border border-violet-200 bg-white">
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-red-200 bg-white text-red-700 hover:bg-red-50"
+        title="Remove file"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
 
-      <div className="bg-violet-50/50 p-3">
-        {previewKind === "image" && (
+      <div className="flex h-28 items-center justify-center bg-violet-50/60 p-2">
+        {previewKind === "image" ? (
           <img
             src={previewUrl}
             alt={file.name}
-            className="h-28 w-28 rounded-md border border-violet-200 object-cover object-left bg-white"
+            className="h-full w-full rounded-md border border-violet-200 object-cover object-center bg-white"
           />
+        ) : previewKind === "pdf" ? (
+          <FileText className="h-10 w-10 text-violet-800" />
+        ) : previewKind === "text" ? (
+          <FileCode2 className="h-10 w-10 text-violet-800" />
+        ) : (
+          <FileText className="h-10 w-10 text-violet-800" />
         )}
+      </div>
 
-        {previewKind === "pdf" && (
-          <iframe
-            src={previewUrl}
-            title={file.name}
-            className="h-80 w-full rounded-md border border-violet-200 bg-white"
-          />
-        )}
-
-        {previewKind === "text" && (
-          <pre className="max-h-64 overflow-auto rounded-md border border-violet-200 bg-white p-3 font-mono text-xs leading-6 text-gray-800">
-            {textPreview || "Loading preview..."}
-          </pre>
-        )}
-
-        {previewKind === "unsupported" && (
-          <div className="flex items-center gap-3 rounded-md border border-dashed border-violet-200 bg-white px-4 py-6">
-            <FileText className="h-8 w-8 text-violet-800" />
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Preview after you save</p>
-              <p className="text-xs text-gray-500">
-                This file type will be uploaded when you click Update Submission.
-              </p>
-            </div>
-          </div>
-        )}
+      <div className="border-t border-violet-100 px-2 py-2">
+        <p className="truncate text-xs font-semibold text-violet-900" title={file.name}>
+          {file.name}
+        </p>
+        <p className="mt-0.5 text-[10px] font-semibold text-gray-500">{formatFileSize(file.size)}</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-violet-700">
+          Pending
+        </p>
       </div>
     </article>
   );
