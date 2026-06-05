@@ -1,13 +1,16 @@
 import { Outlet } from "react-router-dom";
 import { useState } from "react";
 
+import { useAuth } from "../context/AuthContext";
+import { TraineeProgressProvider } from "../context/TraineeProgressContext";
 import { Sidebar } from "./Sidebar";
 
 export function DashboardLayout() {
+  const { user } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  return (
+  const layout = (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       {isMobileSidebarOpen && (
         <button
@@ -33,4 +36,10 @@ export function DashboardLayout() {
       </main>
     </div>
   );
+
+  if (user?.role === "admin") {
+    return layout;
+  }
+
+  return <TraineeProgressProvider>{layout}</TraineeProgressProvider>;
 }

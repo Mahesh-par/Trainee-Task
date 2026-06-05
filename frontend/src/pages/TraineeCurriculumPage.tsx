@@ -5,7 +5,8 @@ import { CourseDayDetail } from "../components/CourseDayDetail";
 import { CourseDaySubmission } from "../components/CourseDaySubmission";
 import { Header } from "../components/Header";
 import { useAuth } from "../context/AuthContext";
-import { apiRequest, createDayTimeline, mapCourseDay } from "../lib/api";
+import { useTraineeProgress } from "../context/TraineeProgressContext";
+import { apiRequest, mapCourseDay } from "../lib/api";
 import type { CourseDay } from "../types";
 
 type CourseDaysResponse = {
@@ -19,8 +20,9 @@ export function TraineeCurriculumPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  const dayTimeline = createDayTimeline(user?.createdAt);
+  const { dayTimeline, progress, refreshProgress } = useTraineeProgress();
   const requestedDay = Number(searchParams.get("day"));
+  const maxAccessibleDay = progress?.programCompleted ? 15 : (progress?.unlockedDay ?? 1);
 
   const loadCourseDays = useCallback(async () => {
     setError("");
@@ -40,6 +42,10 @@ export function TraineeCurriculumPage() {
     void loadCourseDays();
   }, [loadCourseDays]);
 
+  useEffect(() => {
+    void refreshProgress();
+  }, [refreshProgress]);
+
   const courseDayByNumber = useMemo(
     () => new Map(courseDays.map((courseDay) => [courseDay.dayNumber, courseDay])),
     [courseDays]
@@ -49,7 +55,7 @@ export function TraineeCurriculumPage() {
     if (
       Number.isInteger(requestedDay) &&
       requestedDay >= 1 &&
-      requestedDay <= 15 &&
+      requestedDay <= maxAccessibleDay &&
       courseDayByNumber.has(requestedDay)
     ) {
       return requestedDay;
@@ -62,7 +68,7 @@ export function TraineeCurriculumPage() {
     }
 
     return courseDays[0]?.dayNumber ?? dayTimeline.currentDay;
-  }, [requestedDay, courseDayByNumber, dayTimeline.currentDay, courseDays]);
+  }, [requestedDay, courseDayByNumber, dayTimeline.currentDay, courseDays, maxAccessibleDay]);
 
   const selectedCourseDay = courseDayByNumber.get(selectedDay) ?? null;
 

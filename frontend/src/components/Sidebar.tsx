@@ -12,6 +12,7 @@ import {
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import { useTraineeProgress } from "../context/TraineeProgressContext";
 import { createDayTimeline } from "../lib/api";
 import { DayTracker } from "./DayTracker";
 
@@ -54,7 +55,9 @@ export function Sidebar({
 
     return user?.role !== "admin" || link.to.startsWith("/trainee");
   });
-  const dayTimeline = createDayTimeline(user?.createdAt);
+  const { dayTimeline: progressTimeline } = useTraineeProgress();
+  const dayTimeline =
+    user?.role === "admin" ? createDayTimeline(user?.createdAt) : progressTimeline;
   const selectedDay = Number(searchParams.get("day")) || dayTimeline.currentDay;
   const userInitials =
     user?.name

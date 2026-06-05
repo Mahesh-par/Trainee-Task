@@ -6,7 +6,13 @@ import {
   getCourseDayByNumber,
   upsertCourseDay
 } from "../services/course-day.service.js";
-import type { ResourceLinkInput, UpsertCourseDayInput } from "../services/course-day.service.js";
+import type { UpsertCourseDayInput } from "../services/course-day.service.js";
+import type { CourseSectionInput } from "../utils/course-sections.js";
+import {
+  courseSectionTypes,
+  courseSectionVariants,
+  type CourseSectionVariant
+} from "../models/course-day.model.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -18,25 +24,38 @@ const getRouteParam = (value: string | string[] | undefined, name: string) => {
   return value;
 };
 
-const parseResources = (resources: unknown): ResourceLinkInput[] => {
-  if (!Array.isArray(resources)) {
+const parseSections = (sections: unknown): CourseSectionInput[] => {
+  if (!Array.isArray(sections)) {
     return [];
   }
 
-  return resources
-    .filter((resource): resource is ResourceLinkInput => {
-      return (
-        typeof resource === "object" &&
-        resource !== null &&
-        "label" in resource &&
-        "url" in resource &&
-        typeof resource.label === "string" &&
-        typeof resource.url === "string"
-      );
-    })
-    .map((resource) => ({
-      label: resource.label,
-      url: resource.url
+  return sections
+    .filter((section): section is Record<string, unknown> => typeof section === "object" && section !== null)
+    .map((section, index) => ({
+      id: String(section.id ?? `section-${index}`),
+      label: String(section.label ?? ""),
+      type: courseSectionTypes.includes(section.type as CourseSectionInput["type"])
+        ? (section.type as CourseSectionInput["type"])
+        : "text",
+      order: Number(section.order ?? index),
+      content: String(section.content ?? ""),
+      resources: Array.isArray(section.resources)
+        ? section.resources
+            .filter(
+              (resource): resource is { label: string; url: string } =>
+                typeof resource === "object" &&
+                resource !== null &&
+                "label" in resource &&
+                "url" in resource
+            )
+            .map((resource) => ({
+              label: String(resource.label),
+              url: String(resource.url)
+            }))
+        : [],
+      variant: courseSectionVariants.includes(section.variant as CourseSectionVariant)
+        ? (section.variant as CourseSectionVariant)
+        : "default"
     }));
 };
 
@@ -50,12 +69,7 @@ const parseCourseDayBody = (body: Record<string, unknown>): UpsertCourseDayInput
   return {
     dayNumber,
     title: String(body.title ?? ""),
-    explanation: String(body.explanation ?? ""),
-    resources: parseResources(body.resources),
-    shopifyApplication: String(body.shopifyApplication ?? ""),
-    shopifyAccessPath: String(body.shopifyAccessPath ?? ""),
-    dailyTask: String(body.dailyTask ?? ""),
-    developerTips: String(body.developerTips ?? ""),
+    sections: parseSections(body.sections),
     isPublished: body.isPublished === undefined ? true : Boolean(body.isPublished)
   };
 };

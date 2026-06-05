@@ -1,29 +1,21 @@
-import { ExternalLink, Paperclip, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { fetchTraineeSubmissions } from "../lib/api";
+import { fetchTraineeSubmissions, markTraineeRepliesAsRead } from "../lib/api";
 import type { DaySubmission, Trainee } from "../types";
+import { AttachmentPreview } from "./AttachmentPreview";
 import { DayProgressBar } from "./DayProgressBar";
+import { SubmissionAdminReview } from "./SubmissionAdminReview";
+import { SubmissionReviewStatusBadge } from "./SubmissionReviewStatusBadge";
 import { TrainingStatusBadge } from "./TrainingStatusBadge";
 
 type TraineeDetailModalProps = {
   trainee: Trainee | null;
   onClose: () => void;
+  onRepliesRead?: () => void;
 };
 
-const formatFileSize = (bytes: number) => {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-export function TraineeDetailModal({ trainee, onClose }: TraineeDetailModalProps) {
+export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeDetailModalProps) {
   const [submissions, setSubmissions] = useState<DaySubmission[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +42,21 @@ export function TraineeDetailModal({ trainee, onClose }: TraineeDetailModalProps
       }
     };
 
-    void loadSubmissions();
+    const loadAndMarkRead = async () => {
+      await loadSubmissions();
+
+      try {
+        await markTraineeRepliesAsRead(trainee.id);
+        setSubmissions((current) =>
+          current.map((submission) => ({ ...submission, adminReplyRead: true }))
+        );
+        onRepliesRead?.();
+      } catch {
+        // Ignore mark-read errors so the modal still opens.
+      }
+    };
+
+    void loadAndMarkRead();
   }, [trainee]);
 
   if (!trainee) {
@@ -58,6 +64,14 @@ export function TraineeDetailModal({ trainee, onClose }: TraineeDetailModalProps
   }
 
   const currentDay = Math.max(1, trainee.daysCompleted ?? 0);
+
+  const handleSubmissionUpdated = (updatedSubmission: DaySubmission) => {
+    setSubmissions((currentSubmissions) =>
+      currentSubmissions.map((submission) =>
+        submission.id === updatedSubmission.id ? updatedSubmission : submission
+      )
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/50 px-4 py-6">
@@ -121,9 +135,14 @@ export function TraineeDetailModal({ trainee, onClose }: TraineeDetailModalProps
                     className="rounded-lg border border-gray-200 bg-white p-4 shadow-soft"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                      <h5 className="text-base font-extrabold text-gray-950">
-                        Day {submission.dayNumber}
-                      </h5>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h5 className="text-base font-extrabold text-gray-950">
+                          Day {submission.dayNumber}
+                        </h5>
+                        {submission.reviewStatus && (
+                          <SubmissionReviewStatusBadge status={submission.reviewStatus} />
+                        )}
+                      </div>
                       {submission.updatedAt && (
                         <p className="text-xs font-semibold text-gray-500">
                           Updated {new Date(submission.updatedAt).toLocaleString()}
@@ -140,26 +159,23 @@ export function TraineeDetailModal({ trainee, onClose }: TraineeDetailModalProps
                     )}
 
                     {submission.attachments.length > 0 && (
-                      <ul className="mt-3 space-y-2">
+                      <div className="mt-3 space-y-3">
                         {submission.attachments.map((attachment) => (
-                          <li key={attachment.id}>
-                            <a
-                              href={attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-sm font-semibold text-navy-800 hover:underline"
-                            >
-                              <Paperclip className="h-3.5 w-3.5" />
-                              {attachment.originalName}
-                              <span className="text-xs text-gray-500">
-                                ({formatFileSize(attachment.size)})
-                              </span>
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </li>
+                          <AttachmentPreview
+                            key={attachment.id}
+                            url={attachment.url}
+                            name={attachment.originalName}
+                            mimeType={attachment.mimeType}
+                            size={attachment.size}
+                          />
                         ))}
-                      </ul>
+                      </div>
                     )}
+
+                    <SubmissionAdminReview
+                      submission={submission}
+                      onUpdated={handleSubmissionUpdated}
+                    />
                   </article>
                 ))}
               </div>

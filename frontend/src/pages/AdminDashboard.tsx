@@ -5,7 +5,7 @@ import { StatsCard } from "../components/StatsCard";
 import { TraineeDetailModal } from "../components/TraineeDetailModal";
 import { TraineeTable } from "../components/TraineeTable";
 import { useAuth } from "../context/AuthContext";
-import { apiRequest, mapTrainee } from "../lib/api";
+import { apiRequest, fetchUnreadReplyCounts, mapTrainee } from "../lib/api";
 import type { Trainee } from "../types";
 
 type TraineesResponse = {
@@ -28,6 +28,7 @@ export function AdminDashboard() {
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [submissionCount, setSubmissionCount] = useState(0);
   const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
+  const [unreadRepliesByTrainee, setUnreadRepliesByTrainee] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,8 +61,12 @@ export function AdminDashboard() {
         })
       );
 
-      const stats = await apiRequest<{ totalSubmissions: number }>("/submissions/stats");
+      const [stats, unreadReplies] = await Promise.all([
+        apiRequest<{ totalSubmissions: number }>("/submissions/stats"),
+        fetchUnreadReplyCounts()
+      ]);
       setSubmissionCount(stats.totalSubmissions);
+      setUnreadRepliesByTrainee(Object.fromEntries(unreadReplies.entries()));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard");
     } finally {
@@ -150,10 +155,21 @@ export function AdminDashboard() {
           />
         </section>
 
-        <TraineeTable trainees={trainees} onViewDetails={setSelectedTrainee} />
+        <TraineeTable
+          trainees={trainees}
+          unreadRepliesByTrainee={unreadRepliesByTrainee}
+          onViewDetails={setSelectedTrainee}
+        />
       </div>
 
-      <TraineeDetailModal trainee={selectedTrainee} onClose={() => setSelectedTrainee(null)} />
+      <TraineeDetailModal
+        trainee={selectedTrainee}
+        onClose={() => setSelectedTrainee(null)}
+        onRepliesRead={async () => {
+          const unreadReplies = await fetchUnreadReplyCounts();
+          setUnreadRepliesByTrainee(Object.fromEntries(unreadReplies.entries()));
+        }}
+      />
     </div>
   );
 }

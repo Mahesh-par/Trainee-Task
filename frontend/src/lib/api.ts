@@ -1,8 +1,11 @@
 import type {
   AuthUser,
   CourseDay,
-  CourseDayInput,
+  CourseSection,
   DaySubmission,
+  SubmissionMessage,
+  SubmissionReviewStatus,
+  TraineeDayProgress,
   Task,
   TaskStatus,
   Trainee,
@@ -127,6 +130,28 @@ export const createDayTimeline = (createdAt?: string) => {
   };
 };
 
+export const createDayTimelineFromProgress = (progress: TraineeDayProgress) => ({
+  currentDay: progress.currentDay,
+  days: Array.from({ length: 15 }, (_, index) => {
+    const day = index + 1;
+
+    if (progress.doneDays.includes(day)) {
+      return { day, state: "completed" as const };
+    }
+
+    if (day === progress.unlockedDay) {
+      return { day, state: "in_progress" as const };
+    }
+
+    return { day, state: "upcoming" as const };
+  })
+});
+
+export const fetchTraineeDayProgress = async () => {
+  const data = await apiRequest<{ progress: TraineeDayProgress }>("/submissions/my-progress");
+  return data.progress;
+};
+
 export const apiRequest = async <T>(path: string, options: RequestInit = {}) => {
   const token = getToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -192,12 +217,7 @@ type BackendCourseDay = {
   _id: string;
   dayNumber: number;
   title: string;
-  explanation: string;
-  resources: CourseDay["resources"];
-  shopifyApplication: string;
-  shopifyAccessPath: string;
-  dailyTask: string;
-  developerTips: string;
+  sections?: CourseSection[];
   isPublished: boolean;
 };
 
@@ -205,25 +225,14 @@ export const mapCourseDay = (courseDay: BackendCourseDay): CourseDay => ({
   id: courseDay._id,
   dayNumber: courseDay.dayNumber,
   title: courseDay.title,
-  explanation: courseDay.explanation,
-  resources: courseDay.resources ?? [],
-  shopifyApplication: courseDay.shopifyApplication,
-  shopifyAccessPath: courseDay.shopifyAccessPath,
-  dailyTask: courseDay.dailyTask,
-  developerTips: courseDay.developerTips,
+  sections: (courseDay.sections ?? []).map((section, index) => ({
+    ...section,
+    order: section.order ?? index,
+    resources: section.resources ?? [],
+    content: section.content ?? "",
+    variant: section.variant ?? "default"
+  })),
   isPublished: courseDay.isPublished
-});
-
-export const emptyCourseDayInput = (dayNumber: number): CourseDayInput => ({
-  dayNumber,
-  title: "",
-  explanation: "",
-  resources: [{ label: "", url: "" }],
-  shopifyApplication: "",
-  shopifyAccessPath: "",
-  dailyTask: "",
-  developerTips: "",
-  isPublished: false
 });
 
 type BackendSubmissionAttachment = {
@@ -234,6 +243,11 @@ type BackendSubmissionAttachment = {
   size: number;
 };
 
+type BackendReviewer = {
+  name: string;
+  email?: string;
+};
+
 type BackendDaySubmission = {
   _id: string;
   dayNumber: number;
@@ -241,23 +255,113 @@ type BackendDaySubmission = {
   attachments?: BackendSubmissionAttachment[];
   createdAt?: string;
   updatedAt?: string;
+  reviewStatus?: SubmissionReviewStatus | null;
+  adminComment?: string;
+  reviewedAt?: string;
+  reviewedBy?: BackendReviewer | string | null;
+  traineeReply?: string;
+  traineeRepliedAt?: string;
+  adminReplyRead?: boolean;
+  messages?: Array<{
+    _id?: string;
+    id?: string;
+    role: "admin" | "trainee";
+    body: string;
+    reviewStatus?: SubmissionReviewStatus | null;
+    createdAt?: string;
+  }>;
 };
 
-export const mapDaySubmission = (submission: BackendDaySubmission): DaySubmission => ({
-  id: submission._id,
-  dayNumber: submission.dayNumber,
-  content: submission.content ?? "",
-  attachments: (submission.attachments ?? []).map((attachment) => ({
-    id: attachment._id,
-    originalName: attachment.originalName,
-    storedName: attachment.storedName,
-    mimeType: attachment.mimeType,
-    size: attachment.size,
-    url: `${getUploadsBaseUrl()}/uploads/${attachment.storedName}`
-  })),
-  submittedAt: submission.createdAt,
-  updatedAt: submission.updatedAt
-});
+const mapSubmissionMessages = (
+  submission: BackendDaySubmission
+): SubmissionMessage[] => {
+  if (submission.messages && submission.messages.length > 0) {
+    return submission.messages
+      .map((message, index) => ({
+        id: message._id ?? message.id ?? `message-${index}`,
+        role: message.role,
+        body: message.body ?? "",
+        reviewStatus: message.reviewStatus ?? null,
+        createdAt: message.createdAt ?? new Date().toISOString()
+      }))
+      .filter((message) => message.body.trim().length > 0)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  const legacyMessages: SubmissionMessage[] = [];
+
+  if (submission.adminComment?.trim() && submission.reviewStatus) {
+    legacyMessages.push({
+      id: "legacy-admin",
+      role: "admin",
+      body: submission.adminComment,
+      reviewStatus: submission.reviewStatus,
+      createdAt: submission.reviewedAt ?? new Date().toISOString()
+    });
+  }
+
+  if (submission.traineeReply?.trim()) {
+    legacyMessages.push({
+      id: "legacy-trainee",
+      role: "trainee",
+      body: submission.traineeReply,
+      createdAt: submission.traineeRepliedAt ?? new Date().toISOString()
+    });
+  }
+
+  return legacyMessages;
+};
+
+export const mapDaySubmission = (submission: BackendDaySubmission): DaySubmission => {
+  const reviewedBy =
+    submission.reviewedBy && typeof submission.reviewedBy === "object"
+      ? submission.reviewedBy.name
+      : undefined;
+
+  return {
+    id: submission._id,
+    dayNumber: submission.dayNumber,
+    content: submission.content ?? "",
+    attachments: (submission.attachments ?? []).map((attachment) => ({
+      id: attachment._id,
+      originalName: attachment.originalName,
+      storedName: attachment.storedName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      url: `${getUploadsBaseUrl()}/uploads/${attachment.storedName}`
+    })),
+    submittedAt: submission.createdAt,
+    updatedAt: submission.updatedAt,
+    reviewStatus: submission.reviewStatus ?? null,
+    adminComment: submission.adminComment ?? "",
+    reviewedAt: submission.reviewedAt,
+    reviewedByName: reviewedBy,
+    traineeReply: submission.traineeReply ?? "",
+    traineeRepliedAt: submission.traineeRepliedAt,
+    adminReplyRead: submission.adminReplyRead ?? true,
+    messages: mapSubmissionMessages(submission)
+  };
+};
+
+export const updateSubmissionReview = async ({
+  submissionId,
+  reviewStatus,
+  adminComment
+}: {
+  submissionId: string;
+  reviewStatus: SubmissionReviewStatus;
+  adminComment: string;
+}) => {
+  const data = await apiRequest<{ submission: BackendDaySubmission }>(
+    `/submissions/${submissionId}/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ reviewStatus, adminComment })
+    }
+  );
+
+  return mapDaySubmission(data.submission);
+};
 
 export const fetchMyDaySubmission = async (dayNumber: number) => {
   const data = await apiRequest<{ submission: BackendDaySubmission | null }>(
@@ -314,4 +418,30 @@ export const fetchTraineeSubmissions = async (traineeId: string) => {
   );
 
   return data.submissions.map(mapDaySubmission);
+};
+
+export const submitTraineeReply = async (dayNumber: number, traineeReply: string) => {
+  const data = await apiRequest<{ submission: BackendDaySubmission }>(
+    `/submissions/day/${dayNumber}/reply`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ traineeReply })
+    }
+  );
+
+  return mapDaySubmission(data.submission);
+};
+
+export const fetchUnreadReplyCounts = async () => {
+  const data = await apiRequest<{
+    unreadReplies: Array<{ traineeId: string; count: number }>;
+  }>("/submissions/unread-replies");
+
+  return new Map(data.unreadReplies.map((item) => [item.traineeId, item.count]));
+};
+
+export const markTraineeRepliesAsRead = async (traineeId: string) => {
+  await apiRequest(`/submissions/trainee/${traineeId}/mark-replies-read`, {
+    method: "PATCH"
+  });
 };

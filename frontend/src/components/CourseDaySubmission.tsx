@@ -1,6 +1,8 @@
-import { FileUp, Paperclip, Send, Trash2, Upload } from "lucide-react";
+import { FileUp, Send, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
+import { AttachmentPreview, PendingFilePreview } from "./AttachmentPreview";
+import { SubmissionTraineeFeedback } from "./SubmissionTraineeFeedback";
 import {
   deleteSubmissionAttachment,
   fetchMyDaySubmission,
@@ -15,18 +17,6 @@ type CourseDaySubmissionProps = {
 type SubmissionBaseline = {
   content: string;
   attachmentIds: string[];
-};
-
-const formatFileSize = (bytes: number) => {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
@@ -103,9 +93,28 @@ export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
 
   const canSubmit = isDirty && hasSubmittableContent && !isSubmitting;
 
+  const pendingPreviewUrls = useMemo(
+    () => selectedFiles.map((file) => URL.createObjectURL(file)),
+    [selectedFiles]
+  );
+
+  useEffect(() => {
+    return () => {
+      pendingPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+    };
+  }, [pendingPreviewUrls]);
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
     setSelectedFiles(files);
+  };
+
+  const handleRemovePendingFile = (index: number) => {
+    setSelectedFiles((currentFiles) => currentFiles.filter((_, fileIndex) => fileIndex !== index));
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -178,7 +187,8 @@ export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
       {isLoading ? (
         <p className="mt-4 text-sm font-semibold text-violet-900">Loading your submission...</p>
       ) : (
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+        <>
+          <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <label className="block text-sm font-bold text-violet-950">
             Paste submission
             <textarea
@@ -214,49 +224,38 @@ export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
               </div>
             </label>
             {selectedFiles.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {selectedFiles.map((file) => (
-                  <li key={`${file.name}-${file.size}`} className="text-xs font-semibold text-violet-900">
-                    {file.name} ({formatFileSize(file.size)})
-                  </li>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-800">
+                  New files (preview before save)
+                </p>
+                {selectedFiles.map((file, index) => (
+                  <PendingFilePreview
+                    key={`${file.name}-${file.size}-${index}`}
+                    file={file}
+                    previewUrl={pendingPreviewUrls[index]}
+                    onRemove={() => handleRemovePendingFile(index)}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
           {submission && submission.attachments.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white p-3">
+            <div className="space-y-3">
               <p className="text-xs font-extrabold uppercase tracking-wide text-violet-800">
                 Uploaded attachments
               </p>
-              <ul className="mt-2 space-y-2">
-                {submission.attachments.map((attachment) => (
-                  <li
-                    key={attachment.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2"
-                  >
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-navy-800 hover:underline"
-                    >
-                      <Paperclip className="h-3.5 w-3.5" />
-                      {attachment.originalName}
-                      <span className="text-xs text-gray-500">({formatFileSize(attachment.size)})</span>
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => void handleRemoveAttachment(attachment.id)}
-                      disabled={isSubmitting}
-                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {submission.attachments.map((attachment) => (
+                <AttachmentPreview
+                  key={attachment.id}
+                  url={attachment.url}
+                  name={attachment.originalName}
+                  mimeType={attachment.mimeType}
+                  size={attachment.size}
+                  onRemove={() => void handleRemoveAttachment(attachment.id)}
+                  removeDisabled={isSubmitting}
+                />
+              ))}
             </div>
           )}
 
@@ -285,6 +284,19 @@ export function CourseDaySubmission({ dayNumber }: CourseDaySubmissionProps) {
                 : "Submit Work"}
           </button>
         </form>
+
+          {submission && (
+            <SubmissionTraineeFeedback
+              submission={submission}
+              dayNumber={dayNumber}
+              onReplySaved={(updatedSubmission) => {
+                setSubmission(updatedSubmission);
+                setNotification("Message sent to admin.");
+                window.setTimeout(() => setNotification(""), 2500);
+              }}
+            />
+          )}
+        </>
       )}
     </section>
   );

@@ -6,10 +6,15 @@ import { TrainingStatusBadge } from "./TrainingStatusBadge";
 
 type TraineeTableProps = {
   trainees: Trainee[];
+  unreadRepliesByTrainee?: Record<string, number>;
   onViewDetails: (trainee: Trainee) => void;
 };
 
-export function TraineeTable({ trainees, onViewDetails }: TraineeTableProps) {
+export function TraineeTable({
+  trainees,
+  unreadRepliesByTrainee = {},
+  onViewDetails
+}: TraineeTableProps) {
   return (
     <section id="trainees" className="rounded-lg border border-gray-200 bg-white shadow-soft">
       <div className="border-b border-gray-200 px-5 py-4">
@@ -66,11 +71,18 @@ export function TraineeTable({ trainees, onViewDetails }: TraineeTableProps) {
                 </td>
                 <td className="px-5 py-4">
                   <button
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+                    className="relative flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
                     title="View submissions"
                     onClick={() => onViewDetails(trainee)}
                   >
                     <Eye className="h-4 w-4" />
+                    {(unreadRepliesByTrainee[trainee.id] ?? 0) > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-extrabold text-white">
+                        {unreadRepliesByTrainee[trainee.id] > 9
+                          ? "9+"
+                          : unreadRepliesByTrainee[trainee.id]}
+                      </span>
+                    )}
                   </button>
                 </td>
               </tr>

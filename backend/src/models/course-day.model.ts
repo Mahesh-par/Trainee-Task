@@ -1,17 +1,32 @@
 import { model, Schema } from "mongoose";
 import type { InferSchemaType } from "mongoose";
 
+export const courseSectionTypes = ["text", "resources"] as const;
+export type CourseSectionType = (typeof courseSectionTypes)[number];
+
+export const courseSectionVariants = ["default", "task", "tips", "shopify", "location"] as const;
+export type CourseSectionVariant = (typeof courseSectionVariants)[number];
+
 const resourceLinkSchema = new Schema(
   {
-    label: {
+    label: { type: String, required: true, trim: true },
+    url: { type: String, required: true, trim: true }
+  },
+  { _id: false }
+);
+
+const courseSectionSchema = new Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
+    type: { type: String, enum: courseSectionTypes, required: true },
+    order: { type: Number, required: true, min: 0 },
+    content: { type: String, default: "", trim: true },
+    resources: { type: [resourceLinkSchema], default: [] },
+    variant: {
       type: String,
-      required: true,
-      trim: true
-    },
-    url: {
-      type: String,
-      required: true,
-      trim: true
+      enum: courseSectionVariants,
+      default: "default"
     }
   },
   { _id: false }
@@ -32,35 +47,16 @@ const courseDaySchema = new Schema(
       trim: true,
       minlength: 2
     },
-    explanation: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    resources: {
-      type: [resourceLinkSchema],
+    sections: {
+      type: [courseSectionSchema],
       default: []
     },
-    shopifyApplication: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    shopifyAccessPath: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    dailyTask: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    developerTips: {
-      type: String,
-      required: true,
-      trim: true
-    },
+    explanation: { type: String, default: "", trim: true },
+    resources: { type: [resourceLinkSchema], default: [] },
+    shopifyApplication: { type: String, default: "", trim: true },
+    shopifyAccessPath: { type: String, default: "", trim: true },
+    dailyTask: { type: String, default: "", trim: true },
+    developerTips: { type: String, default: "", trim: true },
     isPublished: {
       type: Boolean,
       default: true

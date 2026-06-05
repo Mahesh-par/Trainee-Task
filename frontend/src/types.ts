@@ -38,16 +38,24 @@ export type ResourceLink = {
   url: string;
 };
 
+export type CourseSectionType = "text" | "resources";
+export type CourseSectionVariant = "default" | "task" | "tips" | "shopify" | "location";
+
+export type CourseSection = {
+  id: string;
+  label: string;
+  type: CourseSectionType;
+  order: number;
+  content?: string;
+  resources?: ResourceLink[];
+  variant?: CourseSectionVariant;
+};
+
 export type CourseDay = {
   id: string;
   dayNumber: number;
   title: string;
-  explanation: string;
-  resources: ResourceLink[];
-  shopifyApplication: string;
-  shopifyAccessPath: string;
-  dailyTask: string;
-  developerTips: string;
+  sections: CourseSection[];
   isPublished: boolean;
 };
 
@@ -62,6 +70,23 @@ export type SubmissionAttachment = {
   url: string;
 };
 
+export type SubmissionReviewStatus = "done" | "need_improvement" | "cancel";
+
+export type SubmissionMessage = {
+  id: string;
+  role: "admin" | "trainee";
+  body: string;
+  reviewStatus?: SubmissionReviewStatus | null;
+  createdAt: string;
+};
+
+export type TraineeDayProgress = {
+  unlockedDay: number;
+  doneDays: number[];
+  currentDay: number;
+  programCompleted: boolean;
+};
+
 export type DaySubmission = {
   id: string;
   dayNumber: number;
@@ -69,4 +94,12 @@ export type DaySubmission = {
   attachments: SubmissionAttachment[];
   submittedAt?: string;
   updatedAt?: string;
+  reviewStatus?: SubmissionReviewStatus | null;
+  adminComment?: string;
+  reviewedAt?: string;
+  reviewedByName?: string;
+  traineeReply?: string;
+  traineeRepliedAt?: string;
+  adminReplyRead?: boolean;
+  messages: SubmissionMessage[];
 };

@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CourseDayDetail } from "../components/CourseDayDetail";
 import { CourseDayEditor } from "../components/CourseDayEditor";
 import { useAuth } from "../context/AuthContext";
-import { apiRequest, emptyCourseDayInput, mapCourseDay } from "../lib/api";
+import { apiRequest, mapCourseDay } from "../lib/api";
+import {
+  courseDayInputFromCourseDay,
+  courseDayPreviewFromInput,
+  emptyCourseDayInput
+} from "../lib/curriculumDefaults";
 import type { CourseDay, CourseDayInput } from "../types";
 
 type CourseDaysResponse = {
@@ -27,6 +32,7 @@ export function AdminCurriculumPage() {
   );
 
   const selectedCourseDay = courseDayByNumber.get(selectedDay) ?? null;
+  const previewCourseDay = courseDayPreviewFromInput(formValue);
 
   const loadCourseDays = useCallback(async () => {
     setError("");
@@ -48,20 +54,7 @@ export function AdminCurriculumPage() {
 
   useEffect(() => {
     if (selectedCourseDay) {
-      setFormValue({
-        dayNumber: selectedCourseDay.dayNumber,
-        title: selectedCourseDay.title,
-        explanation: selectedCourseDay.explanation,
-        resources:
-          selectedCourseDay.resources.length > 0
-            ? selectedCourseDay.resources
-            : [{ label: "", url: "" }],
-        shopifyApplication: selectedCourseDay.shopifyApplication,
-        shopifyAccessPath: selectedCourseDay.shopifyAccessPath,
-        dailyTask: selectedCourseDay.dailyTask,
-        developerTips: selectedCourseDay.developerTips,
-        isPublished: selectedCourseDay.isPublished
-      });
+      setFormValue(courseDayInputFromCourseDay(selectedCourseDay));
       return;
     }
 
@@ -125,7 +118,7 @@ export function AdminCurriculumPage() {
           <div>
             <h2 className="text-2xl font-extrabold text-gray-950">Curriculum Editor</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Set daily Shopify course content. All published days are visible to every trainee.
+              Drag sections to set priority, rename fields, and add custom blocks for each day.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -189,7 +182,7 @@ export function AdminCurriculumPage() {
                 })}
               </div>
               <p className="mt-4 text-xs leading-5 text-gray-500">
-                Green days already have saved content. Select a day, fill the form, and publish.
+                Green days already have saved content. Select a day, drag sections, and publish.
               </p>
             </aside>
 
@@ -214,16 +207,14 @@ export function AdminCurriculumPage() {
               <section className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5">
                 <h3 className="text-lg font-extrabold text-gray-950">Trainee Preview</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  This is how trainees will read the selected day.
+                  Live preview updates as you edit field names, order, and content.
                 </p>
                 <div className="mt-4">
-                  {selectedCourseDay && selectedCourseDay.isPublished ? (
-                    <CourseDayDetail courseDay={selectedCourseDay} />
+                  {formValue.title.trim() ? (
+                    <CourseDayDetail courseDay={previewCourseDay} />
                   ) : (
                     <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                      {selectedCourseDay
-                        ? "This day is saved but not published yet."
-                        : "No saved content for this day yet."}
+                      Add a topic title to preview this day.
                     </p>
                   )}
                 </div>

@@ -1,30 +1,21 @@
 import { CourseDayModel } from "../models/course-day.model.js";
+import { courseSectionVariants } from "../models/course-day.model.js";
+import type { CourseSectionVariant } from "../models/course-day.model.js";
+import {
+  buildLegacySections,
+  normalizeCourseDayRecord,
+  syncLegacyFieldsFromSections
+} from "../utils/course-sections.js";
+import type { CourseSectionInput, ResourceLinkInput } from "../utils/course-sections.js";
 import { ApiError } from "../utils/api-error.js";
 
-export type ResourceLinkInput = {
-  label: string;
-  url: string;
-};
+export type { ResourceLinkInput };
 
 export type UpsertCourseDayInput = {
   dayNumber: number;
   title: string;
-  explanation: string;
-  resources: ResourceLinkInput[];
-  shopifyApplication: string;
-  shopifyAccessPath: string;
-  dailyTask: string;
-  developerTips: string;
+  sections: CourseSectionInput[];
   isPublished?: boolean;
-};
-
-const normalizeResources = (resources: ResourceLinkInput[]) => {
-  return resources
-    .map((resource) => ({
-      label: resource.label.trim(),
-      url: resource.url.trim()
-    }))
-    .filter((resource) => resource.label && resource.url);
 };
 
 const validateDayNumber = (dayNumber: number) => {
@@ -33,10 +24,63 @@ const validateDayNumber = (dayNumber: number) => {
   }
 };
 
+const normalizeResources = (resources: ResourceLinkInput[] = []) => {
+  return resources
+    .map((resource) => ({
+      label: resource.label.trim(),
+      url: resource.url.trim()
+    }))
+    .filter((resource) => resource.label && resource.url);
+};
+
+const normalizeSections = (sections: CourseSectionInput[]) => {
+  if (!Array.isArray(sections) || sections.length === 0) {
+    throw new ApiError(400, "At least one content section is required");
+  }
+
+  return sections
+    .map((section, index) => {
+      const label = section.label?.trim();
+
+      if (!label) {
+        throw new ApiError(400, "Every section needs a field name");
+      }
+
+      if (section.type !== "text" && section.type !== "resources") {
+        throw new ApiError(400, `Invalid section type for "${label}"`);
+      }
+
+      const variant = courseSectionVariants.includes(section.variant as CourseSectionVariant)
+        ? section.variant
+        : "default";
+
+      if (section.type === "resources") {
+        return {
+          id: section.id?.trim() || `section-${index}`,
+          label,
+          type: "resources" as const,
+          order: index,
+          resources: normalizeResources(section.resources),
+          variant
+        };
+      }
+
+      return {
+        id: section.id?.trim() || `section-${index}`,
+        label,
+        type: "text" as const,
+        order: index,
+        content: String(section.content ?? "").trim(),
+        variant
+      };
+    });
+};
+
 export const getAllCourseDays = async (publishedOnly: boolean) => {
   const filter = publishedOnly ? { isPublished: true } : {};
+  const courseDays = await CourseDayModel.find(filter).sort({ dayNumber: 1 }).lean();
 
-  return CourseDayModel.find(filter).sort({ dayNumber: 1 }).lean();
+  return courseDays.map((courseDay) => normalizeCourseDayRecord(courseDay));
 };
 
 export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boolean) => {
@@ -52,7 +96,7 @@ export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boo
     throw new ApiError(404, `Course content for day ${dayNumber} was not found`);
   }
 
-  return courseDay;
+  return normalizeCourseDayRecord(courseDay);
 };
 
 export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
@@ -62,37 +106,21 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
     throw new ApiError(400, "Title is required");
   }
 
-  if (!input.explanation.trim()) {
-    throw new ApiError(400, "Explanation is required");
+  const sections = normalizeSections(input.sections);
+
+  if (sections.length === 0) {
+    throw new ApiError(400, "Add content to at least one section before saving");
   }
 
-  if (!input.shopifyApplication.trim()) {
-    throw new ApiError(400, "Shopify application notes are required");
-  }
-
-  if (!input.shopifyAccessPath.trim()) {
-    throw new ApiError(400, "Shopify access path is required");
-  }
-
-  if (!input.dailyTask.trim()) {
-    throw new ApiError(400, "Daily task is required");
-  }
-
-  if (!input.developerTips.trim()) {
-    throw new ApiError(400, "Developer tips are required");
-  }
+  const legacyFields = syncLegacyFieldsFromSections(sections);
 
   const courseDay = await CourseDayModel.findOneAndUpdate(
     { dayNumber: input.dayNumber },
     {
       dayNumber: input.dayNumber,
       title: input.title.trim(),
-      explanation: input.explanation.trim(),
-      resources: normalizeResources(input.resources),
-      shopifyApplication: input.shopifyApplication.trim(),
-      shopifyAccessPath: input.shopifyAccessPath.trim(),
-      dailyTask: input.dailyTask.trim(),
-      developerTips: input.developerTips.trim(),
+      sections,
+      ...legacyFields,
       isPublished: input.isPublished ?? true
     },
     {
@@ -103,7 +131,7 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
     }
   ).lean();
 
-  return courseDay;
+  return normalizeCourseDayRecord(courseDay);
 };
 
 export const deleteCourseDay = async (dayNumber: number) => {
@@ -120,41 +148,45 @@ const defaultCourseDays: UpsertCourseDayInput[] = [
   {
     dayNumber: 1,
     title: "HTML Fundamentals",
-    explanation:
-      "HTML is the backbone of web pages. It allows you to structure content like headings, paragraphs, images, links, and forms. Understanding HTML helps you control page structure, accessibility, SEO signals, and how content is rendered inside Shopify theme files.",
-    resources: [
-      { label: "W3Schools HTML", url: "https://www.w3schools.com/html/" },
-      {
-        label: "HTML Crash Course",
-        url: "https://youtu.be/HD13eq_Pmp8?si=Blm7DRMoug0UeBd9"
-      }
-    ],
-    shopifyApplication:
-      "In Shopify, HTML is used in theme files to create page structure and content.",
-    shopifyAccessPath:
-      "Shopify Admin → Online Store → Themes → Actions → Edit Code → .liquid files",
-    dailyTask:
-      "Create a sample page with heading, paragraph, image, and link using HTML.",
-    developerTips: "Use semantic HTML for better SEO and accessibility.",
+    sections: buildLegacySections({
+      explanation:
+        "HTML is the backbone of web pages. It allows you to structure content like headings, paragraphs, images, links, and forms. Understanding HTML helps you control page structure, accessibility, SEO signals, and how content is rendered inside Shopify theme files.",
+      resources: [
+        { label: "W3Schools HTML", url: "https://www.w3schools.com/html/" },
+        {
+          label: "HTML Crash Course",
+          url: "https://youtu.be/HD13eq_Pmp8?si=Blm7DRMoug0UeBd9"
+        }
+      ],
+      shopifyApplication:
+        "In Shopify, HTML is used in theme files to create page structure and content.",
+      shopifyAccessPath:
+        "Shopify Admin → Online Store → Themes → Actions → Edit Code → .liquid files",
+      dailyTask:
+        "Create a sample page with heading, paragraph, image, and link using HTML.",
+      developerTips: "Use semantic HTML for better SEO and accessibility."
+    }),
     isPublished: true
   },
   {
     dayNumber: 2,
     title: "CSS Fundamentals",
-    explanation:
-      "CSS styles your HTML content. It controls colors, fonts, spacing, and layout. In Shopify themes, CSS directly affects storefront branding, readability, mobile layout, and perceived performance.",
-    resources: [
-      { label: "W3Schools CSS", url: "https://www.w3schools.com/css/" },
-      {
-        label: "CSS Crash Course",
-        url: "https://youtu.be/wRNinF7YQqQ?si=9-GKWYfIlItfLOB2"
-      }
-    ],
-    shopifyApplication:
-      "In Shopify, CSS is used to style theme elements like buttons, banners, and text.",
-    shopifyAccessPath: "Shopify Admin → Themes → Edit Code → theme.css or style.css",
-    dailyTask: "Style your Day 1 HTML page: change colors, fonts, and spacing.",
-    developerTips: "Use DevTools to preview changes and test responsiveness.",
+    sections: buildLegacySections({
+      explanation:
+        "CSS styles your HTML content. It controls colors, fonts, spacing, and layout. In Shopify themes, CSS directly affects storefront branding, readability, mobile layout, and perceived performance.",
+      resources: [
+        { label: "W3Schools CSS", url: "https://www.w3schools.com/css/" },
+        {
+          label: "CSS Crash Course",
+          url: "https://youtu.be/wRNinF7YQqQ?si=9-GKWYfIlItfLOB2"
+        }
+      ],
+      shopifyApplication:
+        "In Shopify, CSS is used to style theme elements like buttons, banners, and text.",
+      shopifyAccessPath: "Shopify Admin → Themes → Edit Code → theme.css or style.css",
+      dailyTask: "Style your Day 1 HTML page: change colors, fonts, and spacing.",
+      developerTips: "Use DevTools to preview changes and test responsiveness."
+    }),
     isPublished: true
   }
 ];

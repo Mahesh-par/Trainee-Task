@@ -5,9 +5,16 @@ import {
   getSubmissionsForDay,
   getSubmissionsForTrainee,
   getSubmissionStats,
+  getTraineeDayProgress,
+  getUnreadReplyCountsByTrainee,
+  markTraineeRepliesAsRead,
   removeSubmissionAttachment,
+  submitTraineeReply,
+  updateSubmissionReview,
   upsertDaySubmission
 } from "../services/day-submission.service.js";
+import type { SubmissionReviewStatus } from "../models/day-submission.model.js";
+import { submissionReviewStatuses } from "../models/day-submission.model.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -26,6 +33,16 @@ const getRouteParam = (value: string | string[] | undefined, name: string) => {
 
   return value;
 };
+
+export const getMyDayProgressHandler = asyncHandler(async (request: Request, response: Response) => {
+  const progress = await getTraineeDayProgress(getUserId(request));
+
+  response.status(200).json({
+    success: true,
+    message: "Trainee progress fetched successfully",
+    data: { progress }
+  });
+});
 
 export const getMyDaySubmissionHandler = asyncHandler(
   async (request: Request, response: Response) => {
@@ -114,6 +131,75 @@ export const listTraineeSubmissionsForAdminHandler = asyncHandler(
       success: true,
       message: "Trainee submissions fetched successfully",
       data: { submissions }
+    });
+  }
+);
+
+export const submitTraineeReplyHandler = asyncHandler(async (request: Request, response: Response) => {
+  const dayNumber = Number(getRouteParam(request.params.dayNumber, "Day number"));
+  const { traineeReply } = request.body as { traineeReply?: string };
+
+  const submission = await submitTraineeReply({
+    traineeId: getUserId(request),
+    dayNumber,
+    traineeReply: String(traineeReply ?? "")
+  });
+
+  response.status(200).json({
+    success: true,
+    message: "Reply sent to admin successfully",
+    data: { submission }
+  });
+});
+
+export const getUnreadReplyCountsHandler = asyncHandler(
+  async (_request: Request, response: Response) => {
+    const unreadReplies = await getUnreadReplyCountsByTrainee();
+
+    response.status(200).json({
+      success: true,
+      message: "Unread reply counts fetched successfully",
+      data: { unreadReplies }
+    });
+  }
+);
+
+export const markTraineeRepliesReadHandler = asyncHandler(
+  async (request: Request, response: Response) => {
+    const traineeId = getRouteParam(request.params.traineeId, "Trainee id");
+    await markTraineeRepliesAsRead(traineeId);
+
+    response.status(200).json({
+      success: true,
+      message: "Trainee replies marked as read",
+      data: null
+    });
+  }
+);
+
+export const updateSubmissionReviewHandler = asyncHandler(
+  async (request: Request, response: Response) => {
+    const submissionId = getRouteParam(request.params.submissionId, "Submission id");
+    const { reviewStatus, adminComment } = request.body as {
+      reviewStatus?: SubmissionReviewStatus;
+      adminComment?: string;
+    };
+
+    if (!reviewStatus || !submissionReviewStatuses.includes(reviewStatus)) {
+      throw new ApiError(400, "A valid review status is required");
+    }
+
+    const submission = await updateSubmissionReview({
+      submissionId,
+      reviewStatus,
+      adminComment: String(adminComment ?? ""),
+      adminId: getUserId(request)
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Submission review saved successfully",
+      data: { submission }
     });
   }
 );
