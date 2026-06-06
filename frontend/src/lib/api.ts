@@ -3,6 +3,7 @@ import type {
   AuthUser,
   CourseDay,
   CourseSection,
+  CurriculumTrack,
   DaySubmission,
   SubmissionMessage,
   SubmissionReviewStatus,
@@ -13,6 +14,7 @@ import type {
   Trainee,
   TrainingStatus
 } from "../types";
+import { DEFAULT_CURRICULUM_TRACK } from "./curriculumTracks";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:6060/api";
 
@@ -41,7 +43,17 @@ type BackendUser = {
   name: string;
   email: string;
   role: "admin" | "user";
+  traineeRole?: CurriculumTrack;
   createdAt?: string;
+};
+
+const withTrackQuery = (path: string, track?: CurriculumTrack) => {
+  if (!track) {
+    return path;
+  }
+
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}track=${encodeURIComponent(track)}`;
 };
 
 type BackendAssignment = {
@@ -165,18 +177,27 @@ export const fetchTraineeDayProgress = async () => {
   return data.progress;
 };
 
-export const fetchProgramSettings = async () => {
-  const data = await apiRequest<ProgramSettings>("/program-settings");
+export const fetchProgramSettings = async (track?: CurriculumTrack) => {
+  const data = await apiRequest<ProgramSettings>(withTrackQuery("/program-settings", track));
   return data;
 };
 
-export const updateProgramSettings = async (totalDays: number) => {
-  const data = await apiRequest<ProgramSettings>("/program-settings", {
+export const updateProgramSettings = async (totalDays: number, track?: CurriculumTrack) => {
+  const data = await apiRequest<ProgramSettings>(withTrackQuery("/program-settings", track), {
     method: "PATCH",
-    body: JSON.stringify({ totalDays })
+    body: JSON.stringify({ totalDays, track })
   });
 
   return data;
+};
+
+export const updateTraineeRole = async (traineeId: string, traineeRole: CurriculumTrack) => {
+  const data = await apiRequest<{ trainee: BackendUser }>(`/users/trainees/${traineeId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ traineeRole })
+  });
+
+  return mapTrainee(data.trainee);
 };
 
 export const apiRequest = async <T>(path: string, options: RequestInit = {}) => {
@@ -220,6 +241,7 @@ export const mapTrainee = (user: BackendUser): Trainee => ({
   id: getUserId(user),
   name: user.name,
   email: user.email,
+  traineeRole: user.traineeRole ?? DEFAULT_CURRICULUM_TRACK,
   ...getTrainingMeta(user.createdAt)
 });
 

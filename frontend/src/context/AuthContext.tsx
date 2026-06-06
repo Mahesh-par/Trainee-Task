@@ -2,12 +2,17 @@ import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { apiRequest, clearAuthSession, getStoredUser, setAuthSession } from "../lib/api";
-import type { AuthUser } from "../types";
+import type { AuthUser, CurriculumTrack } from "../types";
 
 type AuthContextValue = {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<AuthUser>;
-  register: (name: string, email: string, password: string) => Promise<AuthUser>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    traineeRole: CurriculumTrack
+  ) => Promise<AuthUser>;
   logout: () => void;
 };
 
@@ -34,10 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
         return data.user;
       },
-      register: async (name, email, password) => {
+      register: async (name, email, password, traineeRole) => {
         const data = await apiRequest<AuthResponse>("/auth/register", {
           method: "POST",
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, email, password, traineeRole })
         });
 
         setAuthSession(data.token, data.user);

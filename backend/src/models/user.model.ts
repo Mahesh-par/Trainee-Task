@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import { model, Schema } from "mongoose";
 import type { HydratedDocument, InferSchemaType } from "mongoose";
 
+import { curriculumTracks } from "../constants/curriculum-tracks.js";
+
 const userRoles = ["user", "admin"] as const;
 
 const userSchema = new Schema(
@@ -29,6 +31,11 @@ const userSchema = new Schema(
       type: String,
       enum: userRoles,
       default: "user"
+    },
+    traineeRole: {
+      type: String,
+      enum: curriculumTracks,
+      default: "shopify"
     }
   },
   {

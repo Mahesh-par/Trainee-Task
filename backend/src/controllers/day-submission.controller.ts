@@ -15,6 +15,7 @@ import {
 } from "../services/day-submission.service.js";
 import type { SubmissionReviewStatus } from "../models/day-submission.model.js";
 import { submissionReviewStatuses } from "../models/day-submission.model.js";
+import { resolveCurriculumTrackForUser } from "../utils/resolve-curriculum-track.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -101,8 +102,13 @@ export const deleteMySubmissionAttachmentHandler = asyncHandler(
 
 export const listDaySubmissionsForAdminHandler = asyncHandler(
   async (request: Request, response: Response) => {
+    const track = await resolveCurriculumTrackForUser(
+      getUserId(request),
+      request.user?.role,
+      request
+    );
     const dayNumber = Number(getRouteParam(request.params.dayNumber, "Day number"));
-    const submissions = await getSubmissionsForDay(dayNumber);
+    const submissions = await getSubmissionsForDay(track, dayNumber);
 
     response.status(200).json({
       success: true,

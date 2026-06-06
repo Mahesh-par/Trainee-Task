@@ -7,7 +7,6 @@ import { AdminCurriculumPage } from "./pages/AdminCurriculumPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { AuthPage } from "./pages/AuthPage";
 import { TraineeCurriculumPage } from "./pages/TraineeCurriculumPage";
-import { TraineeDashboard } from "./pages/TraineeDashboard";
 
 export default function App() {
   return (
@@ -21,12 +20,15 @@ export default function App() {
             <Route index element={<Navigate to="/trainee/course" replace />} />
             <Route element={<ProtectedRoute allowedRoles={["user", "admin"]} />}>
               <Route path="trainee/course" element={<TraineeCurriculumPage />} />
-              <Route path="trainee/assignments" element={<TraineeDashboard />} />
               <Route path="trainee" element={<Navigate to="/trainee/course" replace />} />
             </Route>
             <Route element={<ProtectedRoute allowedRoles={["admin"]} redirectTo="/admin-login" />}>
               <Route path="admin" element={<AdminDashboard />} />
-              <Route path="admin/curriculum" element={<AdminCurriculumPage />} />
+              <Route
+                path="admin/curriculum"
+                element={<Navigate to="/admin/curriculum/shopify" replace />}
+              />
+              <Route path="admin/curriculum/:track" element={<AdminCurriculumPage />} />
             </Route>
           </Route>
         </Route>

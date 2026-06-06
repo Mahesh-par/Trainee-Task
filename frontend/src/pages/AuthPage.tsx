@@ -3,6 +3,8 @@ import { FormEvent, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import { curriculumTrackLabels, curriculumTracks } from "../lib/curriculumTracks";
+import type { CurriculumTrack } from "../types";
 
 type AuthPageProps = {
   mode: "login" | "register" | "admin-login";
@@ -16,6 +18,7 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [traineeRole, setTraineeRole] = useState<CurriculumTrack | "">("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -30,11 +33,17 @@ export function AuthPage({ mode }: AuthPageProps) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+
+    if (isRegister && !traineeRole) {
+      setError("Please select your training role.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const nextUser = isRegister
-        ? await register(name, email, password)
+        ? await register(name, email, password, traineeRole as CurriculumTrack)
         : await login(email, password);
 
       if (isAdminLogin && nextUser.role !== "admin") {
@@ -69,7 +78,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           </h1>
           <p className="mt-2 text-sm text-gray-500">
             {isRegister
-              ? "Register a trainee account with name, email, and password."
+              ? "Choose your training role. You will only see curriculum for that technology."
               : isAdminLogin
                 ? "Use an admin account to manage trainees and assignments."
                 : "Use your trainee credentials to view assigned tasks."}
@@ -78,18 +87,41 @@ export function AuthPage({ mode }: AuthPageProps) {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           {isRegister && (
-            <div>
-              <label className="text-sm font-bold text-gray-700" htmlFor="name">
-                Name
-              </label>
-              <input
-                id="name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="mt-2 h-11 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-navy-700 focus:ring-2 focus:ring-navy-700/10"
-                required
-              />
-            </div>
+            <>
+              <div>
+                <label className="text-sm font-bold text-gray-700" htmlFor="name">
+                  Name
+                </label>
+                <input
+                  id="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-navy-700 focus:ring-2 focus:ring-navy-700/10"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-700" htmlFor="traineeRole">
+                  Role
+                </label>
+                <select
+                  id="traineeRole"
+                  value={traineeRole}
+                  onChange={(event) => setTraineeRole(event.target.value as CurriculumTrack | "")}
+                  className="mt-2 h-11 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-navy-700 focus:ring-2 focus:ring-navy-700/10"
+                  required
+                >
+                  <option value="" disabled>
+                    Select your role
+                  </option>
+                  {curriculumTracks.map((track) => (
+                    <option key={track} value={track}>
+                      {curriculumTrackLabels[track]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           <div>

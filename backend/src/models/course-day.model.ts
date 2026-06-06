@@ -1,6 +1,7 @@
 import { model, Schema } from "mongoose";
 import type { InferSchemaType } from "mongoose";
 
+import { curriculumTracks } from "../constants/curriculum-tracks.js";
 import { courseSectionColors, courseSectionIcons } from "../utils/section-style.js";
 
 export const courseSectionTypes = ["text", "resources"] as const;
@@ -49,11 +50,16 @@ const courseSectionSchema = new Schema(
 
 const courseDaySchema = new Schema(
   {
+    track: {
+      type: String,
+      enum: curriculumTracks,
+      required: true,
+      default: "shopify"
+    },
     dayNumber: {
       type: Number,
       required: true,
-      min: 1,
-      unique: true
+      min: 1
     },
     title: {
       type: String,
@@ -81,7 +87,7 @@ const courseDaySchema = new Schema(
   }
 );
 
-courseDaySchema.index({ dayNumber: 1 });
+courseDaySchema.index({ track: 1, dayNumber: 1 }, { unique: true });
 
 export type CourseDay = InferSchemaType<typeof courseDaySchema>;
 

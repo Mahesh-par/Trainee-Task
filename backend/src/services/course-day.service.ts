@@ -6,12 +6,14 @@ import {
   syncLegacyFieldsFromSections
 } from "../utils/course-sections.js";
 import type { CourseSectionInput, ResourceLinkInput } from "../utils/course-sections.js";
+import type { CurriculumTrack } from "../constants/curriculum-tracks.js";
 import { validateDayInProgram } from "./program-settings.service.js";
 import { ApiError } from "../utils/api-error.js";
 
 export type { ResourceLinkInput };
 
 export type UpsertCourseDayInput = {
+  track: CurriculumTrack;
   dayNumber: number;
   title: string;
   sections: CourseSectionInput[];
@@ -70,19 +72,23 @@ const normalizeSections = (sections: CourseSectionInput[]) => {
     });
 };
 
-export const getAllCourseDays = async (publishedOnly: boolean) => {
-  const filter = publishedOnly ? { isPublished: true } : {};
+export const getAllCourseDays = async (track: CurriculumTrack, publishedOnly: boolean) => {
+  const filter = publishedOnly ? { track, isPublished: true } : { track };
   const courseDays = await CourseDayModel.find(filter).sort({ dayNumber: 1 }).lean();
 
   return courseDays.map((courseDay) => normalizeCourseDayRecord(courseDay));
 };
 
-export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boolean) => {
-  await validateDayInProgram(dayNumber);
+export const getCourseDayByNumber = async (
+  track: CurriculumTrack,
+  dayNumber: number,
+  publishedOnly: boolean
+) => {
+  await validateDayInProgram(track, dayNumber);
 
   const filter = publishedOnly
-    ? { dayNumber, isPublished: true }
-    : { dayNumber };
+    ? { track, dayNumber, isPublished: true }
+    : { track, dayNumber };
 
   const courseDay = await CourseDayModel.findOne(filter).lean();
 
@@ -94,7 +100,7 @@ export const getCourseDayByNumber = async (dayNumber: number, publishedOnly: boo
 };
 
 export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
-  await validateDayInProgram(input.dayNumber);
+  await validateDayInProgram(input.track, input.dayNumber);
 
   if (!input.title.trim()) {
     throw new ApiError(400, "Title is required");
@@ -109,8 +115,9 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
   const legacyFields = syncLegacyFieldsFromSections(sections);
 
   const courseDay = await CourseDayModel.findOneAndUpdate(
-    { dayNumber: input.dayNumber },
+    { track: input.track, dayNumber: input.dayNumber },
     {
+      track: input.track,
       dayNumber: input.dayNumber,
       title: input.title.trim(),
       sections,
@@ -128,10 +135,10 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
   return normalizeCourseDayRecord(courseDay);
 };
 
-export const deleteCourseDay = async (dayNumber: number) => {
-  await validateDayInProgram(dayNumber);
+export const deleteCourseDay = async (track: CurriculumTrack, dayNumber: number) => {
+  await validateDayInProgram(track, dayNumber);
 
-  const courseDay = await CourseDayModel.findOneAndDelete({ dayNumber });
+  const courseDay = await CourseDayModel.findOneAndDelete({ track, dayNumber });
 
   if (!courseDay) {
     throw new ApiError(404, `Course content for day ${dayNumber} was not found`);
@@ -140,6 +147,7 @@ export const deleteCourseDay = async (dayNumber: number) => {
 
 const defaultCourseDays: UpsertCourseDayInput[] = [
   {
+    track: "shopify",
     dayNumber: 1,
     title: "HTML Fundamentals",
     sections: buildLegacySections({
@@ -163,6 +171,7 @@ const defaultCourseDays: UpsertCourseDayInput[] = [
     isPublished: true
   },
   {
+    track: "shopify",
     dayNumber: 2,
     title: "CSS Fundamentals",
     sections: buildLegacySections({
@@ -186,7 +195,7 @@ const defaultCourseDays: UpsertCourseDayInput[] = [
 ];
 
 export const seedDefaultCourseDays = async () => {
-  const existingCount = await CourseDayModel.countDocuments();
+  const existingCount = await CourseDayModel.countDocuments({ track: "shopify" });
 
   if (existingCount > 0) {
     return;
@@ -196,5 +205,5 @@ export const seedDefaultCourseDays = async () => {
     await upsertCourseDay(courseDay);
   }
 
-  console.log("Seeded default course days (Day 1 and Day 2)");
+  console.log("Seeded default Shopify course days (Day 1 and Day 2)");
 };

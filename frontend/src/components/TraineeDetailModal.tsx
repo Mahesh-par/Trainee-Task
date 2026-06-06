@@ -1,8 +1,13 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchTraineeSubmissions, markTraineeRepliesAsRead } from "../lib/api";
-import type { DaySubmission, Trainee } from "../types";
+import { fetchTraineeSubmissions, markTraineeRepliesAsRead, updateTraineeRole } from "../lib/api";
+import {
+  curriculumTrackLabels,
+  curriculumTracks,
+  DEFAULT_CURRICULUM_TRACK
+} from "../lib/curriculumTracks";
+import type { CurriculumTrack, DaySubmission, Trainee } from "../types";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { DayProgressBar } from "./DayProgressBar";
 import { SubmissionAdminReview } from "./SubmissionAdminReview";
@@ -13,13 +18,22 @@ type TraineeDetailModalProps = {
   trainee: Trainee | null;
   onClose: () => void;
   onRepliesRead?: () => void;
+  onTraineeUpdated?: (trainee: Trainee) => void;
 };
 
-export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeDetailModalProps) {
+export function TraineeDetailModal({
+  trainee,
+  onClose,
+  onRepliesRead,
+  onTraineeUpdated
+}: TraineeDetailModalProps) {
   const [submissions, setSubmissions] = useState<DaySubmission[]>([]);
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedTrack, setSelectedTrack] = useState<CurriculumTrack>(DEFAULT_CURRICULUM_TRACK);
+  const [isUpdatingTrack, setIsUpdatingTrack] = useState(false);
+  const [trackMessage, setTrackMessage] = useState("");
 
   useEffect(() => {
     if (!trainee) {
@@ -27,6 +41,9 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
       setExpandedDays(new Set());
       return;
     }
+
+    setSelectedTrack(trainee.traineeRole ?? DEFAULT_CURRICULUM_TRACK);
+    setTrackMessage("");
 
     const loadSubmissions = async () => {
       setIsLoading(true);
@@ -125,6 +142,28 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
     return lastMessage?.role === "trainee" && !submission.adminReplyRead;
   };
 
+  const handleTrackUpdate = async () => {
+    if (!trainee || selectedTrack === trainee.traineeRole) {
+      return;
+    }
+
+    setIsUpdatingTrack(true);
+    setTrackMessage("");
+    setError("");
+
+    try {
+      const updatedTrainee = await updateTraineeRole(trainee.id, selectedTrack);
+      onTraineeUpdated?.(updatedTrainee);
+      setTrackMessage(`Role updated to ${curriculumTrackLabels[selectedTrack]}.`);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error ? requestError.message : "Failed to update curriculum track"
+      );
+    } finally {
+      setIsUpdatingTrack(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/50 px-4 py-6">
       <section className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-soft">
@@ -138,6 +177,33 @@ export function TraineeDetailModal({ trainee, onClose, onRepliesRead }: TraineeD
             <div className="mt-2">
               <TrainingStatusBadge status={trainee.status ?? "not_started"} />
             </div>
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <label className="text-xs font-bold text-gray-600">
+                Role
+                <select
+                  value={selectedTrack}
+                  onChange={(event) => setSelectedTrack(event.target.value as CurriculumTrack)}
+                  className="mt-1 block min-w-[180px] rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {curriculumTracks.map((track) => (
+                    <option key={track} value={track}>
+                      {curriculumTrackLabels[track]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleTrackUpdate()}
+                disabled={isUpdatingTrack || selectedTrack === trainee.traineeRole}
+                className="rounded-md bg-navy-900 px-3 py-2 text-xs font-bold text-white hover:bg-navy-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {isUpdatingTrack ? "Saving..." : "Update Role"}
+              </button>
+            </div>
+            {trackMessage && (
+              <p className="mt-2 text-xs font-semibold text-emerald-700">{trackMessage}</p>
+            )}
           </div>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"

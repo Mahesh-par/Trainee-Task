@@ -1,5 +1,6 @@
 import { BookOpen, Plus, Trash2, UserCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Navigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CourseDayDetail } from "../components/CourseDayDetail";
@@ -17,6 +18,12 @@ import {
   courseDayPreviewFromInput,
   emptyCourseDayInput
 } from "../lib/curriculumDefaults";
+import {
+  curriculumTrackLabels,
+  DEFAULT_CURRICULUM_TRACK,
+  isCurriculumTrack,
+  type CurriculumTrack
+} from "../lib/curriculumTracks";
 import type { CourseDay, CourseDayInput } from "../types";
 
 type CourseDaysResponse = {
@@ -30,13 +37,21 @@ type ConfirmDialogState = {
   action: () => Promise<void>;
 };
 
-export function AdminCurriculumPage() {
+const trackQuery = (track: CurriculumTrack) => `?track=${encodeURIComponent(track)}`;
+
+type AdminCurriculumEditorProps = {
+  track: CurriculumTrack;
+};
+
+function AdminCurriculumEditor({ track }: AdminCurriculumEditorProps) {
   const { user } = useAuth();
   const [courseDays, setCourseDays] = useState<CourseDay[]>([]);
   const [totalDays, setTotalDays] = useState(DEFAULT_TOTAL_DAYS);
   const [daysToAdd, setDaysToAdd] = useState(1);
   const [selectedDay, setSelectedDay] = useState(1);
-  const [formValue, setFormValue] = useState<CourseDayInput>(emptyCourseDayInput(1));
+  const [formValue, setFormValue] = useState<CourseDayInput>(
+    emptyCourseDayInput(1, DEFAULT_CURRICULUM_TRACK)
+  );
   const [notification, setNotification] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -44,6 +59,7 @@ export function AdminCurriculumPage() {
   const [isUpdatingDays, setIsUpdatingDays] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const trackLabel = curriculumTrackLabels[track];
 
   const courseDayByNumber = useMemo(
     () => new Map(courseDays.map((courseDay) => [courseDay.dayNumber, courseDay])),
@@ -59,8 +75,8 @@ export function AdminCurriculumPage() {
 
     try {
       const [data, settings] = await Promise.all([
-        apiRequest<CourseDaysResponse>("/course-days"),
-        fetchProgramSettings()
+        apiRequest<CourseDaysResponse>(`/course-days${trackQuery(track)}`),
+        fetchProgramSettings(track)
       ]);
       setCourseDays(data.courseDays.map(mapCourseDay));
       setTotalDays(settings.totalDays);
@@ -69,7 +85,7 @@ export function AdminCurriculumPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [track]);
 
   useEffect(() => {
     void loadCourseDays();
@@ -81,8 +97,8 @@ export function AdminCurriculumPage() {
       return;
     }
 
-    setFormValue(emptyCourseDayInput(selectedDay));
-  }, [selectedCourseDay, selectedDay]);
+    setFormValue(emptyCourseDayInput(selectedDay, track));
+  }, [selectedCourseDay, selectedDay, track]);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -94,9 +110,9 @@ export function AdminCurriculumPage() {
     setError("");
 
     try {
-      await apiRequest("/course-days", {
+      await apiRequest(`/course-days${trackQuery(track)}`, {
         method: "PUT",
-        body: JSON.stringify(formValue)
+        body: JSON.stringify({ ...formValue, track })
       });
       await loadCourseDays();
       showNotification(`Day ${formValue.dayNumber} content saved.`);
@@ -118,11 +134,11 @@ export function AdminCurriculumPage() {
           setError("");
 
           try {
-            await apiRequest(`/course-days/${selectedDay}`, {
+            await apiRequest(`/course-days/${selectedDay}${trackQuery(track)}`, {
               method: "DELETE"
             });
             await loadCourseDays();
-            setFormValue(emptyCourseDayInput(selectedDay));
+            setFormValue(emptyCourseDayInput(selectedDay, track));
             showNotification(`Day ${selectedDay} content deleted.`);
           } catch (requestError) {
             setError(
@@ -143,7 +159,7 @@ export function AdminCurriculumPage() {
         "This page has not been saved yet. Clearing it will reset the topic title, sections, and unpublished changes for this day.",
       confirmLabel: "Clear Page",
       action: async () => {
-        setFormValue(emptyCourseDayInput(selectedDay));
+        setFormValue(emptyCourseDayInput(selectedDay, track));
         showNotification(`Day ${selectedDay} draft cleared.`);
       }
     });
@@ -178,7 +194,7 @@ export function AdminCurriculumPage() {
     setError("");
 
     try {
-      const settings = await updateProgramSettings(totalDays + addCount);
+      const settings = await updateProgramSettings(totalDays + addCount, track);
       setTotalDays(settings.totalDays);
       showNotification(`Program extended to ${settings.totalDays} days.`);
     } catch (requestError) {
@@ -193,7 +209,7 @@ export function AdminCurriculumPage() {
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white px-5 py-4 lg:px-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-2xl font-extrabold text-gray-950">Curriculum Editor</h2>
+            <h2 className="text-2xl font-extrabold text-gray-950">{trackLabel} Curriculum</h2>
             <p className="mt-1 text-sm text-gray-500">
               Drag sections to set priority, rename fields, and add custom blocks for each day.
             </p>
@@ -288,7 +304,6 @@ export function AdminCurriculumPage() {
                     {isUpdatingDays ? "Adding..." : "Add Days"}
                   </button>
                 </div>
-
               </div>
 
               <p className="mt-4 text-xs leading-5 text-gray-500">
@@ -360,4 +375,14 @@ export function AdminCurriculumPage() {
       />
     </div>
   );
+}
+
+export function AdminCurriculumPage() {
+  const { track: trackParam } = useParams();
+
+  if (!trackParam || !isCurriculumTrack(trackParam)) {
+    return <Navigate to={`/admin/curriculum/${DEFAULT_CURRICULUM_TRACK}`} replace />;
+  }
+
+  return <AdminCurriculumEditor track={trackParam} />;
 }

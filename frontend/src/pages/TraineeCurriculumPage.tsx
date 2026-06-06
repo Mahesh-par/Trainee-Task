@@ -7,6 +7,7 @@ import { Header } from "../components/Header";
 import { useAuth } from "../context/AuthContext";
 import { useTraineeProgress } from "../context/TraineeProgressContext";
 import { apiRequest, mapCourseDay } from "../lib/api";
+import { curriculumTrackLabels, DEFAULT_CURRICULUM_TRACK } from "../lib/curriculumTracks";
 import type { CourseDay } from "../types";
 
 type CourseDaysResponse = {
@@ -73,14 +74,16 @@ export function TraineeCurriculumPage() {
   }, [requestedDay, courseDayByNumber, dayTimeline.currentDay, courseDays, maxAccessibleDay]);
 
   const selectedCourseDay = courseDayByNumber.get(selectedDay) ?? null;
+  const traineeRoleLabel =
+    curriculumTrackLabels[user?.traineeRole ?? DEFAULT_CURRICULUM_TRACK];
 
   return (
     <div>
       <Header
         name={user?.name ?? "Trainee"}
-        role="Trainee"
+        role={traineeRoleLabel}
         title="Daily Curriculum"
-        subtitle="Follow each day's explanation, Shopify notes, resources, and hands-on task."
+        subtitle={`Follow your ${traineeRoleLabel} training curriculum day by day.`}
       />
 
       <div className="space-y-6 px-5 py-6 lg:px-8">

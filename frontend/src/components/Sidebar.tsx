@@ -1,7 +1,6 @@
 import {
   BarChart3,
   BookOpen,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
@@ -14,18 +13,22 @@ import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router
 import { useAuth } from "../context/AuthContext";
 import { useTraineeProgress } from "../context/TraineeProgressContext";
 import { createDayTimeline, DEFAULT_TOTAL_DAYS } from "../lib/api";
+import { curriculumAdminLinks, curriculumTrackLabels, DEFAULT_CURRICULUM_TRACK } from "../lib/curriculumTracks";
 import { DayTracker } from "./DayTracker";
 
 const navLinks = [
   { label: "Daily Curriculum", to: "/trainee/course", icon: BookOpen },
-  { label: "My Assignments", to: "/trainee/assignments", icon: ClipboardList },
   { label: "Admin Dashboard", to: "/admin", icon: BarChart3, end: true },
-  { label: "Curriculum Editor", to: "/admin/curriculum", icon: BookOpen }
+  { label: "Curriculum Editor", to: "/admin/curriculum/shopify", icon: BookOpen }
 ];
 
 const adminLinks = [
   { label: "Dashboard", to: "/admin", icon: LayoutDashboard, end: true },
-  { label: "Curriculum Editor", to: "/admin/curriculum", icon: BookOpen }
+  ...curriculumAdminLinks.map((link) => ({
+    label: link.label,
+    to: link.to,
+    icon: BookOpen
+  }))
 ];
 
 const labelTransition =
@@ -285,6 +288,9 @@ export function Sidebar({
           }`}
         >
           <h1 className="mt-4 text-lg font-extrabold text-gray-950">Welcome {welcomeName}</h1>
+          <p className="mt-1 text-sm font-semibold text-gray-500">
+            {curriculumTrackLabels[user?.traineeRole ?? DEFAULT_CURRICULUM_TRACK]} trainee
+          </p>
         </div>
         </div>
         <button

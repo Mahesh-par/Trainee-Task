@@ -1,6 +1,8 @@
 import { model, Schema, Types } from "mongoose";
 import type { InferSchemaType } from "mongoose";
 
+import { curriculumTracks } from "../constants/curriculum-tracks.js";
+
 export const submissionReviewStatuses = ["done", "need_improvement", "cancel"] as const;
 export type SubmissionReviewStatus = (typeof submissionReviewStatuses)[number];
 
@@ -62,6 +64,12 @@ const daySubmissionSchema = new Schema(
       ref: "User",
       required: true
     },
+    track: {
+      type: String,
+      enum: curriculumTracks,
+      required: true,
+      default: "shopify"
+    },
     dayNumber: {
       type: Number,
       required: true,
@@ -118,7 +126,7 @@ const daySubmissionSchema = new Schema(
   }
 );
 
-daySubmissionSchema.index({ trainee: 1, dayNumber: 1 }, { unique: true });
+daySubmissionSchema.index({ trainee: 1, track: 1, dayNumber: 1 }, { unique: true });
 
 export type DaySubmission = InferSchemaType<typeof daySubmissionSchema> & {
   _id: Types.ObjectId;

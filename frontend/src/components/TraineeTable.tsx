@@ -1,5 +1,6 @@
 import { Eye } from "lucide-react";
 
+import { curriculumTrackLabels } from "../lib/curriculumTracks";
 import type { Trainee } from "../types";
 import { DayProgressBar } from "./DayProgressBar";
 import { TrainingStatusBadge } from "./TrainingStatusBadge";
@@ -31,6 +32,7 @@ export function TraineeTable({
               {[
                 "#",
                 "Trainee Name",
+                "Track",
                 "Email",
                 "Joining Date",
                 "Days Completed",
@@ -54,6 +56,9 @@ export function TraineeTable({
                 <td className="px-5 py-4 text-sm font-bold text-gray-500">{index + 1}</td>
                 <td className="px-5 py-4 text-sm font-extrabold text-gray-950">
                   {trainee.name}
+                </td>
+                <td className="px-5 py-4 text-sm font-semibold text-gray-700">
+                  {curriculumTrackLabels[trainee.traineeRole ?? "shopify"]}
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-600">{trainee.email}</td>
                 <td className="px-5 py-4 text-sm text-gray-600">{trainee.joiningDate}</td>

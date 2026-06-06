@@ -10,6 +10,7 @@ import type { UpsertCourseDayInput } from "../services/course-day.service.js";
 import type { CourseSectionInput } from "../utils/course-sections.js";
 import { courseSectionTypes } from "../models/course-day.model.js";
 import { resolveSectionStyle } from "../utils/section-style.js";
+import { resolveCurriculumTrackForUser } from "../utils/resolve-curriculum-track.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -19,6 +20,14 @@ const getRouteParam = (value: string | string[] | undefined, name: string) => {
   }
 
   return value;
+};
+
+const getUserId = (request: Request) => {
+  if (!request.user?.id) {
+    throw new ApiError(401, "Authentication required");
+  }
+
+  return request.user.id;
 };
 
 const parseSections = (sections: unknown): CourseSectionInput[] => {
@@ -65,7 +74,7 @@ const parseSections = (sections: unknown): CourseSectionInput[] => {
     }));
 };
 
-const parseCourseDayBody = (body: Record<string, unknown>): UpsertCourseDayInput => {
+const parseCourseDayBody = (body: Record<string, unknown>): Omit<UpsertCourseDayInput, "track"> => {
   const dayNumber = Number(body.dayNumber);
 
   if (Number.isNaN(dayNumber)) {
@@ -81,42 +90,65 @@ const parseCourseDayBody = (body: Record<string, unknown>): UpsertCourseDayInput
 };
 
 export const listCourseDaysHandler = asyncHandler(async (request: Request, response: Response) => {
+  const track = await resolveCurriculumTrackForUser(
+    getUserId(request),
+    request.user?.role,
+    request
+  );
   const publishedOnly = request.user?.role !== "admin";
-  const courseDays = await getAllCourseDays(publishedOnly);
+  const courseDays = await getAllCourseDays(track, publishedOnly);
 
   response.status(200).json({
     success: true,
     message: "Course days fetched successfully",
-    data: { courseDays }
+    data: { courseDays, track }
   });
 });
 
 export const getCourseDayHandler = asyncHandler(async (request: Request, response: Response) => {
+  const track = await resolveCurriculumTrackForUser(
+    getUserId(request),
+    request.user?.role,
+    request
+  );
   const dayNumber = Number(getRouteParam(request.params.dayNumber, "Day number"));
   const publishedOnly = request.user?.role !== "admin";
-  const courseDay = await getCourseDayByNumber(dayNumber, publishedOnly);
+  const courseDay = await getCourseDayByNumber(track, dayNumber, publishedOnly);
 
   response.status(200).json({
     success: true,
     message: "Course day fetched successfully",
-    data: { courseDay }
+    data: { courseDay, track }
   });
 });
 
 export const upsertCourseDayHandler = asyncHandler(async (request: Request, response: Response) => {
-  const input = parseCourseDayBody(request.body as Record<string, unknown>);
+  const track = await resolveCurriculumTrackForUser(
+    getUserId(request),
+    request.user?.role,
+    request
+  );
+  const input = {
+    track,
+    ...parseCourseDayBody(request.body as Record<string, unknown>)
+  };
   const courseDay = await upsertCourseDay(input);
 
   response.status(200).json({
     success: true,
     message: "Course day saved successfully",
-    data: { courseDay }
+    data: { courseDay, track }
   });
 });
 
 export const deleteCourseDayHandler = asyncHandler(async (request: Request, response: Response) => {
+  const track = await resolveCurriculumTrackForUser(
+    getUserId(request),
+    request.user?.role,
+    request
+  );
   const dayNumber = Number(getRouteParam(request.params.dayNumber, "Day number"));
-  await deleteCourseDay(dayNumber);
+  await deleteCourseDay(track, dayNumber);
 
   response.status(200).json({
     success: true,

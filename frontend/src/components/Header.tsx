@@ -1,6 +1,6 @@
 type HeaderProps = {
   name: string;
-  role: "Admin" | "Trainee";
+  role: string;
   title: string;
   subtitle: string;
 };

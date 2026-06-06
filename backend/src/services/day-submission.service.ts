@@ -4,10 +4,15 @@ import path from "node:path";
 import { Types } from "mongoose";
 import type { Express } from "express";
 
+import {
+  DEFAULT_CURRICULUM_TRACK,
+  type CurriculumTrack
+} from "../constants/curriculum-tracks.js";
 import { getUploadsDirectory } from "../middleware/upload.middleware.js";
 import { DaySubmissionModel } from "../models/day-submission.model.js";
 import type { SubmissionReviewStatus } from "../models/day-submission.model.js";
 import { submissionReviewStatuses } from "../models/day-submission.model.js";
+import { UserModel } from "../models/user.model.js";
 import { getTotalDays, validateDayInProgram } from "./program-settings.service.js";
 import { ApiError } from "../utils/api-error.js";
 import { enrichSubmissionDocument, getLastMessageRole } from "../utils/submission-messages.js";
@@ -17,6 +22,16 @@ const enrichSubmission = <T extends Record<string, unknown>>(submission: T | nul
 
 const enrichSubmissions = <T extends Record<string, unknown>>(submissions: T[]) =>
   submissions.map((submission) => enrichSubmissionDocument(submission));
+
+const getTraineeTrack = async (traineeId: string): Promise<CurriculumTrack> => {
+  const user = await UserModel.findById(traineeId).select("traineeRole").lean();
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return user.traineeRole ?? DEFAULT_CURRICULUM_TRACK;
+};
 
 const mapUploadedFiles = (files: Express.Multer.File[]) =>
   files.map((file) => ({
@@ -41,7 +56,8 @@ const removeFilesFromDisk = async (storedNames: string[]) => {
 };
 
 export const getSubmissionForTraineeDay = async (traineeId: string, dayNumber: number) => {
-  await validateDayInProgram(dayNumber);
+  const track = await getTraineeTrack(traineeId);
+  await validateDayInProgram(track, dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -49,6 +65,7 @@ export const getSubmissionForTraineeDay = async (traineeId: string, dayNumber: n
 
   const submission = await DaySubmissionModel.findOne({
     trainee: traineeId,
+    track,
     dayNumber
   })
     .populate("trainee", "name email")
@@ -69,7 +86,8 @@ export const upsertDaySubmission = async ({
   content: string;
   files: Express.Multer.File[];
 }) => {
-  await validateDayInProgram(dayNumber);
+  const track = await getTraineeTrack(traineeId);
+  await validateDayInProgram(track, dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -84,6 +102,7 @@ export const upsertDaySubmission = async ({
 
   const existingSubmission = await DaySubmissionModel.findOne({
     trainee: traineeId,
+    track,
     dayNumber
   });
 
@@ -105,6 +124,7 @@ export const upsertDaySubmission = async ({
 
   const submission = await DaySubmissionModel.create({
     trainee: traineeId,
+    track,
     dayNumber,
     content: trimmedContent,
     attachments: uploadedAttachments
@@ -122,7 +142,8 @@ export const removeSubmissionAttachment = async ({
   dayNumber: number;
   attachmentId: string;
 }) => {
-  await validateDayInProgram(dayNumber);
+  const track = await getTraineeTrack(traineeId);
+  await validateDayInProgram(track, dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -130,6 +151,7 @@ export const removeSubmissionAttachment = async ({
 
   const submission = await DaySubmissionModel.findOne({
     trainee: traineeId,
+    track,
     dayNumber
   });
 
@@ -150,10 +172,10 @@ export const removeSubmissionAttachment = async ({
   return submission.populate("trainee", "name email");
 };
 
-export const getSubmissionsForDay = async (dayNumber: number) => {
-  await validateDayInProgram(dayNumber);
+export const getSubmissionsForDay = async (track: CurriculumTrack, dayNumber: number) => {
+  await validateDayInProgram(track, dayNumber);
 
-  const submissions = await DaySubmissionModel.find({ dayNumber })
+  const submissions = await DaySubmissionModel.find({ track, dayNumber })
     .populate("trainee", "name email")
     .sort({ updatedAt: -1 })
     .lean();
@@ -180,8 +202,11 @@ export const getTraineeDayProgress = async (traineeId: string) => {
     throw new ApiError(400, "Invalid trainee id");
   }
 
+  const track = await getTraineeTrack(traineeId);
+
   const doneSubmissions = await DaySubmissionModel.find({
     trainee: traineeId,
+    track,
     reviewStatus: "done"
   })
     .select("dayNumber")
@@ -190,12 +215,13 @@ export const getTraineeDayProgress = async (traineeId: string) => {
   const doneDays = doneSubmissions
     .map((submission) => submission.dayNumber)
     .sort((left, right) => left - right);
-  const totalDays = await getTotalDays();
+  const totalDays = await getTotalDays(track);
   const highestDoneDay = doneDays[doneDays.length - 1] ?? 0;
   const unlockedDay = Math.min(Math.max(highestDoneDay + 1, 1), totalDays);
   const programCompleted = highestDoneDay >= totalDays;
 
   return {
+    track,
     unlockedDay,
     doneDays,
     currentDay: programCompleted ? totalDays : unlockedDay,
@@ -275,7 +301,8 @@ export const submitTraineeReply = async ({
   dayNumber: number;
   traineeReply: string;
 }) => {
-  await validateDayInProgram(dayNumber);
+  const track = await getTraineeTrack(traineeId);
+  await validateDayInProgram(track, dayNumber);
 
   if (!Types.ObjectId.isValid(traineeId)) {
     throw new ApiError(400, "Invalid trainee id");
@@ -289,6 +316,7 @@ export const submitTraineeReply = async ({
 
   const submission = await DaySubmissionModel.findOne({
     trainee: traineeId,
+    track,
     dayNumber
   });
 

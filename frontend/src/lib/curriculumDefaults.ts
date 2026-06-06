@@ -1,4 +1,10 @@
-import type { CourseDayInput, CourseSection, CourseSectionColor, CourseSectionIcon } from "../types";
+import type {
+  CourseDayInput,
+  CourseSection,
+  CourseSectionColor,
+  CourseSectionIcon,
+  CurriculumTrack
+} from "../types";
 
 export const createSectionId = () =>
   `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -32,19 +38,42 @@ export const createResourcesSection = (
   color: "default"
 });
 
-export const defaultSectionsForNewDay = (): CourseSection[] => [
+const trackApplicationLabels: Record<CurriculumTrack, string> = {
+  webflow: "How it applies in Webflow",
+  wordpress: "How it applies in WordPress",
+  shopify: "How it applies in Shopify",
+  "ui-ux": "How it applies in UI/UX projects",
+  testing: "How it applies in testing workflows",
+  squarespace: "How it applies in Squarespace",
+  wix: "How it applies in Wix"
+};
+
+const trackAccessLabels: Record<CurriculumTrack, string> = {
+  webflow: "Where to access in Webflow",
+  wordpress: "Where to access in WordPress",
+  shopify: "Where to access in Shopify",
+  "ui-ux": "Where to apply in design tools",
+  testing: "Where to apply in your test suite",
+  squarespace: "Where to access in Squarespace",
+  wix: "Where to access in Wix"
+};
+
+export const defaultSectionsForNewDay = (track: CurriculumTrack = "shopify"): CourseSection[] => [
   createTextSection("Explanation", 0),
   createResourcesSection("Learning Resources", 1),
-  createTextSection("How it applies in Shopify", 2, "", "shopping-bag", "default"),
-  createTextSection("Where to access in Shopify", 3, "", "map-pin", "rose"),
+  createTextSection(trackApplicationLabels[track], 2, "", "shopping-bag", "default"),
+  createTextSection(trackAccessLabels[track], 3, "", "map-pin", "rose"),
   createTextSection("Daily Task", 4, "", "target", "emerald"),
   createTextSection("Developer Tips", 5, "", "lightbulb", "amber")
 ];
 
-export const emptyCourseDayInput = (dayNumber: number): CourseDayInput => ({
+export const emptyCourseDayInput = (
+  dayNumber: number,
+  track: CurriculumTrack = "shopify"
+): CourseDayInput => ({
   dayNumber,
   title: "",
-  sections: defaultSectionsForNewDay(),
+  sections: defaultSectionsForNewDay(track),
   isPublished: false
 });
 

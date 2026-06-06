@@ -7,6 +7,7 @@ export type Trainee = {
   id: string;
   name: string;
   email: string;
+  traineeRole?: CurriculumTrack;
   progress: number;
   joiningDate?: string;
   daysCompleted?: number;
@@ -14,11 +15,21 @@ export type Trainee = {
   status?: TrainingStatus;
 };
 
+export type CurriculumTrack =
+  | "webflow"
+  | "wordpress"
+  | "shopify"
+  | "ui-ux"
+  | "testing"
+  | "squarespace"
+  | "wix";
+
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: "admin" | "user";
+  traineeRole?: CurriculumTrack;
   createdAt?: string;
 };
 
@@ -97,11 +108,13 @@ export type SubmissionMessage = {
 };
 
 export type ProgramSettings = {
+  track?: CurriculumTrack;
   totalDays: number;
   minimumTotalDays: number;
 };
 
 export type TraineeDayProgress = {
+  track?: CurriculumTrack;
   unlockedDay: number;
   doneDays: number[];
   currentDay: number;

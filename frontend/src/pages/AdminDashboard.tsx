@@ -169,6 +169,16 @@ export function AdminDashboard() {
           const unreadReplies = await fetchUnreadReplyCounts();
           setUnreadRepliesByTrainee(Object.fromEntries(unreadReplies.entries()));
         }}
+        onTraineeUpdated={(updatedTrainee) => {
+          setTrainees((current) =>
+            current.map((trainee) =>
+              trainee.id === updatedTrainee.id ? { ...trainee, ...updatedTrainee } : trainee
+            )
+          );
+          setSelectedTrainee((current) =>
+            current?.id === updatedTrainee.id ? { ...current, ...updatedTrainee } : current
+          );
+        }}
       />
     </div>
   );

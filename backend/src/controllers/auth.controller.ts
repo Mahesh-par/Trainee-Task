@@ -1,16 +1,18 @@
 import type { Request, Response } from "express";
 
 import { loginUser, registerUser } from "../services/auth.service.js";
+import { parseCurriculumTrack } from "../utils/resolve-curriculum-track.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const register = asyncHandler(async (request: Request, response: Response) => {
-  const { name, email, password } = request.body as {
+  const { name, email, password, traineeRole } = request.body as {
     name?: string;
     email?: string;
     password?: string;
+    traineeRole?: string;
   };
 
   if (!name?.trim()) {
@@ -25,7 +27,16 @@ export const register = asyncHandler(async (request: Request, response: Response
     throw new ApiError(400, "Password must be at least 6 characters long");
   }
 
-  const auth = await registerUser({ name, email, password });
+  if (!traineeRole?.trim()) {
+    throw new ApiError(400, "Trainee role is required");
+  }
+
+  const auth = await registerUser({
+    name,
+    email,
+    password,
+    traineeRole: parseCurriculumTrack(traineeRole)
+  });
 
   response.status(201).json({
     success: true,
