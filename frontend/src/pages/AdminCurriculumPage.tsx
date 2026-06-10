@@ -124,10 +124,52 @@ function AdminCurriculumEditor({ track }: AdminCurriculumEditorProps) {
   };
 
   const requestDeletePage = () => {
+    const isLastProgramDay = selectedDay === totalDays;
+    const canRemoveProgramDay = isLastProgramDay && totalDays > 1;
+
+    if (canRemoveProgramDay) {
+      const dayToDelete = selectedDay;
+
+      setConfirmDialog({
+        title: `Delete Day ${dayToDelete} page?`,
+        description: selectedCourseDay
+          ? `This will permanently delete "${selectedCourseDay.title}" and remove Day ${dayToDelete} from the ${trackLabel} program. Trainees will no longer see this page, and it will disappear from Training Days here.`
+          : `This will permanently remove Day ${dayToDelete} from the ${trackLabel} program. Trainees will no longer see this page, and it will disappear from Training Days here.`,
+        confirmLabel: "Delete Page",
+        action: async () => {
+          setIsSaving(true);
+          setIsUpdatingDays(true);
+          setError("");
+
+          try {
+            const result = await apiRequest<{ totalDays: number; removedProgramDay: boolean }>(
+              `/course-days/${dayToDelete}${trackQuery(track)}`,
+              { method: "DELETE" }
+            );
+            await loadCourseDays();
+
+            const nextSelectedDay = Math.max(1, Math.min(dayToDelete - 1, result.totalDays));
+            setSelectedDay(nextSelectedDay);
+            setFormValue(emptyCourseDayInput(nextSelectedDay, track));
+            showNotification(`Day ${dayToDelete} deleted. Program now has ${result.totalDays} days.`);
+          } catch (requestError) {
+            setError(
+              requestError instanceof Error ? requestError.message : "Failed to delete day page"
+            );
+            throw requestError;
+          } finally {
+            setIsSaving(false);
+            setIsUpdatingDays(false);
+          }
+        }
+      });
+      return;
+    }
+
     if (selectedCourseDay) {
       setConfirmDialog({
         title: `Delete Day ${selectedDay} page?`,
-        description: `This will permanently remove all saved content for "${selectedCourseDay.title}". Trainees will no longer see this day until you publish new content.`,
+        description: `This will permanently remove all saved content for "${selectedCourseDay.title}". The Day ${selectedDay} slot will stay in the ${trackLabel} program because only the final day can be removed completely.`,
         confirmLabel: "Delete Page",
         action: async () => {
           setIsSaving(true);

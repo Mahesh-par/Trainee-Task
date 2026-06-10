@@ -1,4 +1,5 @@
 import { CourseDayModel } from "../models/course-day.model.js";
+import { DaySubmissionModel } from "../models/day-submission.model.js";
 import { resolveSectionStyle } from "../utils/section-style.js";
 import {
   buildLegacySections,
@@ -7,7 +8,11 @@ import {
 } from "../utils/course-sections.js";
 import type { CourseSectionInput, ResourceLinkInput } from "../utils/course-sections.js";
 import type { CurriculumTrack } from "../constants/curriculum-tracks.js";
-import { validateDayInProgram } from "./program-settings.service.js";
+import {
+  getTotalDays,
+  updateTotalDays,
+  validateDayInProgram
+} from "./program-settings.service.js";
 import { ApiError } from "../utils/api-error.js";
 
 export type { ResourceLinkInput };
@@ -138,11 +143,38 @@ export const upsertCourseDay = async (input: UpsertCourseDayInput) => {
 export const deleteCourseDay = async (track: CurriculumTrack, dayNumber: number) => {
   await validateDayInProgram(track, dayNumber);
 
+  const totalDays = await getTotalDays(track);
+  const isLastProgramDay = dayNumber === totalDays;
+
+  if (isLastProgramDay && totalDays > 1) {
+    const existingSubmission = await DaySubmissionModel.exists({ track, dayNumber });
+
+    if (existingSubmission) {
+      throw new ApiError(
+        400,
+        `Cannot delete day ${dayNumber} because trainee submissions exist for that day`
+      );
+    }
+
+    await CourseDayModel.findOneAndDelete({ track, dayNumber });
+    const settings = await updateTotalDays(track, totalDays - 1);
+
+    return {
+      totalDays: settings.totalDays,
+      removedProgramDay: true
+    };
+  }
+
   const courseDay = await CourseDayModel.findOneAndDelete({ track, dayNumber });
 
   if (!courseDay) {
     throw new ApiError(404, `Course content for day ${dayNumber} was not found`);
   }
+
+  return {
+    totalDays,
+    removedProgramDay: false
+  };
 };
 
 const defaultCourseDays: UpsertCourseDayInput[] = [

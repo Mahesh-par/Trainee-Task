@@ -148,11 +148,11 @@ export const deleteCourseDayHandler = asyncHandler(async (request: Request, resp
     request
   );
   const dayNumber = Number(getRouteParam(request.params.dayNumber, "Day number"));
-  await deleteCourseDay(track, dayNumber);
+  const result = await deleteCourseDay(track, dayNumber);
 
   response.status(200).json({
     success: true,
     message: "Course day deleted successfully",
-    data: null
+    data: { ...result, track }
   });
 });
