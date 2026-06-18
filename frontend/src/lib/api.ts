@@ -45,6 +45,11 @@ type BackendUser = {
   role: "admin" | "user";
   traineeRole?: CurriculumTrack;
   createdAt?: string;
+  daysCompleted?: number;
+  daysRemaining?: number;
+  totalDays?: number;
+  progress?: number;
+  status?: TrainingStatus;
 };
 
 const withTrackQuery = (path: string, track?: CurriculumTrack) => {
@@ -237,13 +242,27 @@ export const apiRequest = async <T>(path: string, options: RequestInit = {}) => 
 
 const getUserId = (user: BackendUser) => user.id ?? user._id ?? "";
 
-export const mapTrainee = (user: BackendUser): Trainee => ({
-  id: getUserId(user),
-  name: user.name,
-  email: user.email,
-  traineeRole: user.traineeRole ?? DEFAULT_CURRICULUM_TRACK,
-  ...getTrainingMeta(user.createdAt)
-});
+export const mapTrainee = (user: BackendUser): Trainee => {
+  const fallbackMeta = getTrainingMeta(user.createdAt);
+  const totalDays = user.totalDays ?? DEFAULT_TOTAL_DAYS;
+  const daysCompleted = user.daysCompleted ?? fallbackMeta.daysCompleted;
+  const daysRemaining = user.daysRemaining ?? Math.max(totalDays - daysCompleted, 0);
+  const progress =
+    user.progress ?? (totalDays > 0 ? Math.round((daysCompleted / totalDays) * 100) : 0);
+
+  return {
+    id: getUserId(user),
+    name: user.name,
+    email: user.email,
+    traineeRole: user.traineeRole ?? DEFAULT_CURRICULUM_TRACK,
+    joiningDate: user.createdAt?.slice(0, 10) ?? fallbackMeta.joiningDate,
+    daysCompleted,
+    daysRemaining,
+    totalDays,
+    progress,
+    status: user.status ?? fallbackMeta.status
+  };
+};
 
 export const mapAdminTask = (task: BackendTask): Task => {
   const assignments = task.assignments ?? [];

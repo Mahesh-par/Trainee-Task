@@ -12,17 +12,6 @@ type TraineesResponse = {
   trainees: Parameters<typeof mapTrainee>[0][];
 };
 
-type DashboardResponse = {
-  dashboard: Array<{
-    trainee: Parameters<typeof mapTrainee>[0];
-    progress: {
-      completionPercentage: number;
-      totalTasks: number;
-      completedTasks: number;
-    };
-  }>;
-};
-
 export function AdminDashboard() {
   const { user } = useAuth();
   const [trainees, setTrainees] = useState<Trainee[]>([]);
@@ -37,29 +26,8 @@ export function AdminDashboard() {
     setIsLoading(true);
 
     try {
-      const [traineesData, dashboardData] = await Promise.all([
-        apiRequest<TraineesResponse>("/users/trainees"),
-        apiRequest<DashboardResponse>("/tasks/dashboard")
-      ]);
-
-      const progressByTrainee = new Map(
-        dashboardData.dashboard.map((item) => [
-          item.trainee._id ?? item.trainee.id ?? "",
-          item.progress.completionPercentage
-        ])
-      );
-
-      setTrainees(
-        traineesData.trainees.map((trainee) => {
-          const mappedTrainee = mapTrainee(trainee);
-
-          return {
-            ...mappedTrainee,
-            progress:
-              progressByTrainee.get(trainee._id ?? trainee.id ?? "") ?? mappedTrainee.progress
-          };
-        })
-      );
+      const traineesData = await apiRequest<TraineesResponse>("/users/trainees");
+      setTrainees(traineesData.trainees.map(mapTrainee));
 
       const [stats, unreadReplies] = await Promise.all([
         apiRequest<{ totalSubmissions: number }>("/submissions/stats"),
@@ -138,7 +106,7 @@ export function AdminDashboard() {
           <StatsCard
             label="Currently Active"
             value={activeTrainees}
-            detail="Inside the 15-day window"
+            detail="With started curriculum submissions"
             icon={CalendarDays}
           />
           <StatsCard

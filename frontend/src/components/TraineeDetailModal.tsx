@@ -1,7 +1,13 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchTraineeSubmissions, markTraineeRepliesAsRead, updateTraineeRole } from "../lib/api";
+import {
+  apiRequest,
+  fetchTraineeSubmissions,
+  mapCourseDay,
+  markTraineeRepliesAsRead,
+  updateTraineeRole
+} from "../lib/api";
 import {
   curriculumTrackLabels,
   curriculumTracks,
@@ -21,6 +27,10 @@ type TraineeDetailModalProps = {
   onTraineeUpdated?: (trainee: Trainee) => void;
 };
 
+type CourseDaysResponse = {
+  courseDays: Parameters<typeof mapCourseDay>[0][];
+};
+
 export function TraineeDetailModal({
   trainee,
   onClose,
@@ -28,6 +38,7 @@ export function TraineeDetailModal({
   onTraineeUpdated
 }: TraineeDetailModalProps) {
   const [submissions, setSubmissions] = useState<DaySubmission[]>([]);
+  const [courseDayTitles, setCourseDayTitles] = useState<Record<number, string>>({});
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +49,7 @@ export function TraineeDetailModal({
   useEffect(() => {
     if (!trainee) {
       setSubmissions([]);
+      setCourseDayTitles({});
       setExpandedDays(new Set());
       return;
     }
@@ -52,6 +64,19 @@ export function TraineeDetailModal({
       try {
         const data = await fetchTraineeSubmissions(trainee.id);
         setSubmissions(data);
+
+        const track = trainee.traineeRole ?? DEFAULT_CURRICULUM_TRACK;
+        const courseDaysData = await apiRequest<CourseDaysResponse>(
+          `/course-days?track=${encodeURIComponent(track)}`
+        );
+        setCourseDayTitles(
+          Object.fromEntries(
+            courseDaysData.courseDays.map((courseDay) => {
+              const mappedCourseDay = mapCourseDay(courseDay);
+              return [mappedCourseDay.dayNumber, mappedCourseDay.title];
+            })
+          )
+        );
 
         const latestDay = data.reduce(
           (highest, submission) => Math.max(highest, submission.dayNumber),
@@ -93,7 +118,8 @@ export function TraineeDetailModal({
     return null;
   }
 
-  const currentDay = Math.max(1, trainee.daysCompleted ?? 0);
+  const completedTasks = trainee.daysCompleted ?? 0;
+  const totalTasks = trainee.totalDays ?? 15;
 
   const handleSubmissionUpdated = (updatedSubmission: DaySubmission) => {
     setSubmissions((currentSubmissions) =>
@@ -141,6 +167,23 @@ export function TraineeDetailModal({
     const lastMessage = submission.messages[submission.messages.length - 1];
     return lastMessage?.role === "trainee" && !submission.adminReplyRead;
   };
+
+  const getSubmissionHeading = (dayNumber: number) => {
+    const title = courseDayTitles[dayNumber];
+
+    return title ? `Day ${dayNumber}: ${title}` : `Day ${dayNumber}`;
+  };
+
+  const formatSubmissionDateTime = (dateValue?: string) =>
+    dateValue
+      ? new Date(dateValue).toLocaleString(undefined, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+      : "";
 
   const handleTrackUpdate = async () => {
     if (!trainee || selectedTrack === trainee.traineeRole) {
@@ -219,11 +262,11 @@ export function TraineeDetailModal({
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-extrabold text-gray-950">Training Progress</p>
               <p className="text-sm font-semibold text-gray-600">
-                Day {currentDay} · {submissions.length} submission
+                {completedTasks} / {totalTasks} tasks · {submissions.length} submission
                 {submissions.length === 1 ? "" : "s"}
               </p>
             </div>
-            <DayProgressBar completed={trainee.daysCompleted ?? 0} />
+            <DayProgressBar completed={completedTasks} total={totalTasks} />
           </section>
 
           <section>
@@ -274,7 +317,7 @@ export function TraineeDetailModal({
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h5 className="text-base font-extrabold text-gray-950">
-                              Day {submission.dayNumber}
+                              {getSubmissionHeading(submission.dayNumber)}
                             </h5>
                             {submission.reviewStatus && (
                               <SubmissionReviewStatusBadge status={submission.reviewStatus} />
@@ -295,8 +338,8 @@ export function TraineeDetailModal({
                         {submission.updatedAt && (
                           <p className="shrink-0 text-xs font-semibold text-gray-500">
                             {isExpanded
-                              ? `Updated ${new Date(submission.updatedAt).toLocaleString()}`
-                              : new Date(submission.updatedAt).toLocaleDateString()}
+                              ? `Updated ${formatSubmissionDateTime(submission.updatedAt)}`
+                              : formatSubmissionDateTime(submission.updatedAt)}
                           </p>
                         )}
                       </button>

@@ -74,7 +74,7 @@ export const emptyCourseDayInput = (
   dayNumber,
   title: "",
   sections: defaultSectionsForNewDay(track),
-  isPublished: false
+  isPublished: true
 });
 
 export const courseDayInputFromCourseDay = (

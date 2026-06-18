@@ -12,6 +12,7 @@ export type Trainee = {
   joiningDate?: string;
   daysCompleted?: number;
   daysRemaining?: number;
+  totalDays?: number;
   status?: TrainingStatus;
 };
 

@@ -11,6 +11,19 @@ type CourseDaySectionViewProps = {
   section: CourseSection;
 };
 
+const bulletLinePattern = /^\s*(?:[-*]|•)\s+/;
+
+const splitContentLines = (content: string) =>
+  content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const isBulletList = (lines: string[]) =>
+  lines.length > 1 && lines.every((line) => bulletLinePattern.test(line));
+
+const cleanBulletLine = (line: string) => line.replace(bulletLinePattern, "").trim();
+
 export function CourseDaySectionView({ section }: CourseDaySectionViewProps) {
   const { icon, color } = resolveSectionStyle(section);
   const styles = sectionColorStyles[color];
@@ -51,6 +64,9 @@ export function CourseDaySectionView({ section }: CourseDaySectionViewProps) {
     return null;
   }
 
+  const contentLines = splitContentLines(section.content);
+  const textClassName = `text-sm leading-7 ${styles.highlight ? "font-semibold" : ""} ${styles.text}`;
+
   return (
     <section
       className={`rounded-lg border p-5 shadow-soft ${styles.border} ${styles.bg}`}
@@ -59,11 +75,19 @@ export function CourseDaySectionView({ section }: CourseDaySectionViewProps) {
         {Icon && <Icon className="h-4 w-4" />}
         {section.label}
       </div>
-      <p
-        className={`mt-3 text-sm leading-7 ${styles.highlight ? "font-semibold" : ""} ${styles.text}`}
-      >
-        {section.content}
-      </p>
+      {isBulletList(contentLines) ? (
+        <ul className={`mt-3 list-disc space-y-1 pl-5 ${textClassName}`}>
+          {contentLines.map((line, index) => (
+            <li key={`${line}-${index}`}>{cleanBulletLine(line)}</li>
+          ))}
+        </ul>
+      ) : (
+        <div className={`mt-3 space-y-2 ${textClassName}`}>
+          {contentLines.map((line, index) => (
+            <p key={`${line}-${index}`}>{line}</p>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

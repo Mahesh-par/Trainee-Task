@@ -1,7 +1,8 @@
 import { Eye } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { curriculumTrackLabels } from "../lib/curriculumTracks";
-import type { Trainee } from "../types";
+import { curriculumTrackLabels, curriculumTracks } from "../lib/curriculumTracks";
+import type { CurriculumTrack, Trainee } from "../types";
 import { DayProgressBar } from "./DayProgressBar";
 import { TrainingStatusBadge } from "./TrainingStatusBadge";
 
@@ -16,13 +17,39 @@ export function TraineeTable({
   unreadRepliesByTrainee = {},
   onViewDetails
 }: TraineeTableProps) {
+  const [roleFilter, setRoleFilter] = useState<CurriculumTrack | "all">("all");
+  const filteredTrainees = useMemo(
+    () =>
+      roleFilter === "all"
+        ? trainees
+        : trainees.filter((trainee) => (trainee.traineeRole ?? "shopify") === roleFilter),
+    [roleFilter, trainees]
+  );
+
   return (
     <section id="trainees" className="rounded-lg border border-gray-200 bg-white shadow-soft">
-      <div className="border-b border-gray-200 px-5 py-4">
-        <h3 className="text-lg font-extrabold text-gray-950">All Registered Users</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Click the eye icon to view each trainee&apos;s saved daily submissions.
-        </p>
+      <div className="flex flex-col gap-4 border-b border-gray-200 px-5 py-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h3 className="text-lg font-extrabold text-gray-950">All Registered Users</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Click the eye icon to view each trainee&apos;s saved daily submissions.
+          </p>
+        </div>
+        <label className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          Filter by Role
+          <select
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value as CurriculumTrack | "all")}
+            className="mt-2 block min-w-48 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-gray-700"
+          >
+            <option value="all">All roles</option>
+            {curriculumTracks.map((track) => (
+              <option key={track} value={track}>
+                {curriculumTrackLabels[track]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="overflow-x-auto">
@@ -32,11 +59,11 @@ export function TraineeTable({
               {[
                 "#",
                 "Trainee Name",
-                "Track",
+                "Role",
                 "Email",
                 "Joining Date",
-                "Days Completed",
-                "Days Remaining",
+                "Tasks Completed",
+                "Tasks Remaining",
                 "Progress",
                 "Status",
                 "Actions"
@@ -51,7 +78,7 @@ export function TraineeTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {trainees.map((trainee, index) => (
+            {filteredTrainees.map((trainee, index) => (
               <tr key={trainee.id}>
                 <td className="px-5 py-4 text-sm font-bold text-gray-500">{index + 1}</td>
                 <td className="px-5 py-4 text-sm font-extrabold text-gray-950">
@@ -63,13 +90,16 @@ export function TraineeTable({
                 <td className="px-5 py-4 text-sm text-gray-600">{trainee.email}</td>
                 <td className="px-5 py-4 text-sm text-gray-600">{trainee.joiningDate}</td>
                 <td className="px-5 py-4 text-sm font-bold text-gray-800">
-                  Day {trainee.daysCompleted ?? 0} / 15
+                  {trainee.daysCompleted ?? 0} / {trainee.totalDays ?? 15}
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-600">
-                  {trainee.daysRemaining ?? 15} days left
+                  {trainee.daysRemaining ?? trainee.totalDays ?? 15} tasks left
                 </td>
                 <td className="px-5 py-4">
-                  <DayProgressBar completed={trainee.daysCompleted ?? 0} />
+                  <DayProgressBar
+                    completed={trainee.daysCompleted ?? 0}
+                    total={trainee.totalDays ?? 15}
+                  />
                 </td>
                 <td className="px-5 py-4">
                   <TrainingStatusBadge status={trainee.status ?? "not_started"} />
@@ -92,6 +122,13 @@ export function TraineeTable({
                 </td>
               </tr>
             ))}
+            {filteredTrainees.length === 0 && (
+              <tr>
+                <td colSpan={10} className="px-5 py-8 text-center text-sm font-semibold text-gray-500">
+                  No trainees found for this role.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

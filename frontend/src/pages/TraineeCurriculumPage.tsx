@@ -20,6 +20,7 @@ export function TraineeCurriculumPage() {
   const [courseDays, setCourseDays] = useState<CourseDay[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingRouteProgress, setIsSyncingRouteProgress] = useState(false);
 
   const { dayTimeline, progress, refreshProgress } = useTraineeProgress();
   const requestedDay = Number(searchParams.get("day"));
@@ -43,11 +44,32 @@ export function TraineeCurriculumPage() {
 
   useEffect(() => {
     void loadCourseDays();
-  }, [loadCourseDays]);
+  }, [loadCourseDays, requestedDay]);
 
   useEffect(() => {
     void refreshProgress();
   }, [refreshProgress]);
+
+  useEffect(() => {
+    if (!Number.isInteger(requestedDay) || requestedDay < 1) {
+      return;
+    }
+
+    let isActive = true;
+    setIsSyncingRouteProgress(true);
+
+    refreshProgress()
+      .catch(() => undefined)
+      .finally(() => {
+        if (isActive) {
+          setIsSyncingRouteProgress(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [refreshProgress, requestedDay]);
 
   const courseDayByNumber = useMemo(
     () => new Map(courseDays.map((courseDay) => [courseDay.dayNumber, courseDay])),
@@ -55,10 +77,15 @@ export function TraineeCurriculumPage() {
   );
 
   const selectedDay = useMemo(() => {
+    const isRequestedDayAccessible =
+      Number.isInteger(requestedDay) && requestedDay >= 1 && requestedDay <= maxAccessibleDay;
+
+    if (isRequestedDayAccessible && !courseDayByNumber.has(requestedDay)) {
+      return requestedDay;
+    }
+
     if (
-      Number.isInteger(requestedDay) &&
-      requestedDay >= 1 &&
-      requestedDay <= maxAccessibleDay &&
+      isRequestedDayAccessible &&
       courseDayByNumber.has(requestedDay)
     ) {
       return requestedDay;
@@ -93,12 +120,12 @@ export function TraineeCurriculumPage() {
           </p>
         )}
 
-        {isLoading ? (
+        {isLoading || isSyncingRouteProgress ? (
           <p className="rounded-lg border border-gray-200 bg-white p-5 text-sm font-semibold text-gray-600 shadow-soft">
-            Loading daily curriculum...
+            {isLoading ? "Loading daily curriculum..." : "Checking day access..."}
           </p>
         ) : selectedCourseDay ? (
-          <div className="space-y-6">
+          <div key={selectedCourseDay.dayNumber} className="space-y-6">
             <CourseDayDetail courseDay={selectedCourseDay} />
             <CourseDaySubmission dayNumber={selectedCourseDay.dayNumber} />
           </div>

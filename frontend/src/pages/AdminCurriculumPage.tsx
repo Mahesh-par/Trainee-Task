@@ -360,6 +360,15 @@ function AdminCurriculumEditor({ track }: AdminCurriculumEditorProps) {
                     Edit Day {selectedDay}
                     {selectedCourseDay ? `: ${selectedCourseDay.title}` : ""}
                   </h3>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide ${
+                      formValue.isPublished
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {formValue.isPublished ? "Published" : "Draft"}
+                  </span>
                   <button
                     type="button"
                     onClick={requestDeletePage}

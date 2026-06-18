@@ -121,6 +121,36 @@ export function CourseDayEditor({
         </label>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-gray-800">
+          <input
+            type="checkbox"
+            checked={value.isPublished}
+            onChange={(event) => onChange({ ...value, isPublished: event.target.checked })}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          Publish for trainees
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wide ${
+              value.isPublished
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            {value.isPublished ? "Published" : "Draft"}
+          </span>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="rounded-md bg-navy-900 px-4 py-2 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-60"
+          >
+            {isSaving ? "Saving..." : "Save Day Content"}
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -334,16 +364,6 @@ export function CourseDayEditor({
           </div>
         ))}
       </div>
-
-      <label className="inline-flex items-center gap-2 text-sm font-bold text-gray-700">
-        <input
-          type="checkbox"
-          checked={value.isPublished}
-          onChange={(event) => onChange({ ...value, isPublished: event.target.checked })}
-          className="h-4 w-4 rounded border-gray-300"
-        />
-        Publish for all trainees
-      </label>
 
       <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
         <button
